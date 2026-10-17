@@ -135,6 +135,7 @@ func (g *desktop) commandHandlers() map[string]func([]string) error {
 		return func(a []string) error { return noArguments(a, action) }
 	}
 	return map[string]func([]string) error{
+		"explain": g.commandExplain, "walkthrough": g.commandWalkthrough,
 		"save": simple(g.saveEditor), "discard": simple(g.reloadEditor), "review": simple(g.loadReview), "external": simple(g.externalEditor),
 		"editor":   simple(g.editViewedSource),
 		"settings": simple(func() { g.openWorkbench("Settings") }), "config": simple(func() { g.openWorkbench("Settings") }),

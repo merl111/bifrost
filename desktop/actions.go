@@ -182,7 +182,7 @@ func (g *desktop) sendPrompt() {
 	if strings.HasPrefix(prompt, ":") {
 		if err := g.executeCommand(prompt); err != nil {
 			g.showError(err)
-		} else {
+		} else if strings.TrimSpace(g.composer.Text()) == prompt {
 			g.replacePrompt("")
 		}
 		return

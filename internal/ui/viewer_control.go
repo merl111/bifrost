@@ -20,28 +20,32 @@ type ViewerHighlightRange struct {
 // ViewerStep represents one stop in a multi-file or multi-function code flow
 // walkthrough pushed by the AI agent into the viewer.
 type ViewerStep struct {
-	Title     string `json:"title,omitempty"`
-	Path      string `json:"path"`
-	StartLine int    `json:"start_line,omitempty"`
-	EndLine   int    `json:"end_line,omitempty"`
-	Note      string `json:"note,omitempty"`
+	Kind        string `json:"kind,omitempty"` // code (default), concept, or diff
+	Content     string `json:"content,omitempty"`
+	Explanation string `json:"explanation,omitempty"`
+	Title       string `json:"title,omitempty"`
+	Path        string `json:"path"`
+	StartLine   int    `json:"start_line,omitempty"`
+	EndLine     int    `json:"end_line,omitempty"`
+	Note        string `json:"note,omitempty"`
 }
 
 // ViewerCommandPayload is the structured payload emitted by agent viewer tools
 // (`viewer_open`, `viewer_diff`, `viewer_flow`) inside a ChatEvent with
 // Kind == "viewer".
 type ViewerCommandPayload struct {
-	Action     string                 `json:"action"` // "open", "diff", "flow", "snippet"
-	Path       string                 `json:"path,omitempty"`
-	Title      string                 `json:"title,omitempty"`
-	Content    string                 `json:"content,omitempty"`
-	Line       int                    `json:"line,omitempty"`
-	StartLine  int                    `json:"start_line,omitempty"`
-	EndLine    int                    `json:"end_line,omitempty"`
-	Symbol     string                 `json:"symbol,omitempty"`
-	Note       string                 `json:"note,omitempty"`
-	Highlights []ViewerHighlightRange `json:"highlights,omitempty"`
-	Steps      []ViewerStep           `json:"steps,omitempty"`
+	Explanation string                 `json:"explanation,omitempty"`
+	Action      string                 `json:"action"` // "open", "diff", "flow", "snippet"
+	Path        string                 `json:"path,omitempty"`
+	Title       string                 `json:"title,omitempty"`
+	Content     string                 `json:"content,omitempty"`
+	Line        int                    `json:"line,omitempty"`
+	StartLine   int                    `json:"start_line,omitempty"`
+	EndLine     int                    `json:"end_line,omitempty"`
+	Symbol      string                 `json:"symbol,omitempty"`
+	Note        string                 `json:"note,omitempty"`
+	Highlights  []ViewerHighlightRange `json:"highlights,omitempty"`
+	Steps       []ViewerStep           `json:"steps,omitempty"`
 }
 
 func (m *Model) applyViewerChatEvent(event ChatEvent) {
@@ -65,6 +69,9 @@ func (m *Model) executeViewerPayload(payload ViewerCommandPayload) {
 		m.layout, _ = layoutFor(string(LayoutStudio))
 	}
 
+	if payload.Action != "flow" {
+		m.closeWalkthrough()
+	}
 	switch strings.ToLower(strings.TrimSpace(payload.Action)) {
 	case "diff", "review":
 		title := strings.TrimSpace(payload.Title)
@@ -92,9 +99,11 @@ func (m *Model) executeViewerPayload(payload ViewerCommandPayload) {
 		m.status = "agent opened diff in viewer: " + title
 
 	case "flow":
-		if len(payload.Steps) == 0 {
+		if err := ValidateWalkthrough(payload.Steps); err != nil {
+			m.status = err.Error()
 			return
 		}
+		m.viewerTab = 0
 		m.viewerFlowSteps = payload.Steps
 		m.viewerFlowIndex = 0
 		m.viewerFlowTitle = valueOr(payload.Title, "Code Flow Walkthrough")
@@ -183,48 +192,41 @@ func (m *Model) openViewerFlowStep(index int) {
 	index = maxInt(0, minInt(index, len(m.viewerFlowSteps)-1))
 	m.viewerFlowIndex = index
 	step := m.viewerFlowSteps[index]
-	relPath := strings.TrimPrefix(strings.TrimSpace(step.Path), "./")
-	content, err := m.readFile(relPath)
-	if err != nil {
-		m.viewErr = err.Error()
-		return
+	payload := WalkthroughStep(m.viewerFlowTitle, m.viewerFlowSteps, index)
+	m.viewerExplanationOpen = step.Kind == "concept"
+	m.viewerExplanationOffset = 0
+	m.viewerExplanation = payload.Explanation
+	m.viewerBanner = fmt.Sprintf("Step %d/%d · %s", index+1, len(m.viewerFlowSteps), step.Title)
+	m.viewer, m.viewErr, m.viewerOffset = "", "", 0
+	m.viewPath = valueOr(payload.Path, valueOr(step.Title, "Explanation"))
+	if step.Kind == "diff" {
+		m.viewPath = "diff · " + m.viewPath
 	}
-	m.viewPath = relPath
-	m.viewer = content
-	m.viewErr = ""
-	stepHeader := fmt.Sprintf("Flow Step %d/%d", index+1, len(m.viewerFlowSteps))
-	if step.Title != "" {
-		stepHeader += ": " + step.Title
-	}
-	if step.Note != "" {
-		stepHeader += " — " + step.Note
-	}
-	m.viewerBanner = stepHeader + "  ([n/p] next/prev step)"
-	m.viewerHighlights = nil
-	if step.StartLine > 0 {
-		end := step.EndLine
-		if end < step.StartLine {
-			end = step.StartLine
+	m.viewer = payload.Content
+	if m.viewer == "" && payload.Path != "" && step.Kind != "diff" && step.Kind != "concept" {
+		var err error
+		m.viewer, err = m.readFile(payload.Path)
+		if err != nil {
+			m.viewErr = err.Error()
 		}
-		m.viewerHighlights = []ViewerHighlightRange{{
-			StartLine: step.StartLine,
-			EndLine:   end,
-			Label:     valueOr(step.Note, step.Title),
-		}}
-		m.viewerOffset = maxInt(step.StartLine-4, 0)
-		m.clampViewerOffset()
-	} else {
-		m.viewerOffset = 0
 	}
-	m.syncFileTreeToPath(relPath)
-	m.status = fmt.Sprintf("flow step %d/%d: %s", index+1, len(m.viewerFlowSteps), relPath)
+	m.viewerHighlights = ViewerHighlights(m.viewer, payload)
+	for i := range m.viewerHighlights {
+		m.viewerHighlights[i].Label = step.Title
+	}
+	if len(m.viewerHighlights) > 0 {
+		m.viewerOffset = maxInt(m.viewerHighlights[0].StartLine-4, 0)
+	}
+	m.syncFileTreeToPath(payload.Path)
+	m.status = payload.Note
+
 }
 
 func (m *Model) stepViewerFlow(delta int) bool {
 	if len(m.viewerFlowSteps) == 0 {
 		return false
 	}
-	next := (m.viewerFlowIndex + delta + len(m.viewerFlowSteps)) % len(m.viewerFlowSteps)
+	next := max(0, min(m.viewerFlowIndex+delta, len(m.viewerFlowSteps)-1))
 	m.openViewerFlowStep(next)
 	return true
 }

@@ -37,7 +37,7 @@ func (m *Model) chatTranscriptLines() []string {
 		if m.chatRunner == nil {
 			message = "Connect a provider to start a conversation."
 		}
-		lines := []string{"", p.accentText("✦  Welcome to Bifrost"), ""}
+		lines := m.welcomeBrand(width)
 		lines = append(lines, wrapChatText(message, width)...)
 		if width >= 34 {
 			projLabel := strings.TrimSpace(m.projectStatus.ProjectName)

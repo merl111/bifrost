@@ -27,10 +27,10 @@ type chatSelectionState struct {
 }
 
 type chatLinkTarget struct {
-	URL      string // http/https URL if external
-	RelPath  string // relative workspace file/dir path if local
-	IsDir    bool
-	LineNum  int // 1-based line number if specified (e.g. path:42)
+	URL     string // http/https URL if external
+	RelPath string // relative workspace file/dir path if local
+	IsDir   bool
+	LineNum int // 1-based line number if specified (e.g. path:42)
 }
 
 var (
@@ -421,6 +421,8 @@ func (m *Model) openChatLinkTarget(target chatLinkTarget) tea.Cmd {
 		m.status = "unable to open " + target.RelPath + ": " + err.Error()
 		return nil
 	}
+	m.closeWalkthrough()
+	m.viewerHighlights = nil
 	m.viewPath = target.RelPath
 	m.viewer = content
 	m.viewErr = ""

@@ -1,25 +1,19 @@
 package cli
 
 import (
-	"context"
-	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"unicode/utf8"
 
 	"bifrost/internal/agent"
-	"bifrost/internal/provider"
 	"bifrost/internal/skill"
-	"bifrost/internal/store"
 )
 
 const (
 	maxWorkspaceAgentsFileBytes = 64 << 10
 	maxWorkspaceContextBudget   = 160 << 10
-	maxAutoSkillsPerProject     = 16
+	maxAutoSkillsPerProject     = 256
 )
 
 // DiscoverWorkspaceSkills finds and installs/loads local SKILL.md directories inside
@@ -93,61 +87,18 @@ func DiscoverWorkspaceSkills(opts options, root string) []skill.Skill {
 						continue
 					}
 				}
-				// Even if already installed or manager unavailable, inspect SKILL.md directly.
-				if s, ok := readStandaloneSkillDir(skillDir); ok && !seenNames[s.Name] {
-					seenNames[s.Name] = true
-					discovered = append(discovered, s)
-				}
 			}
 		}
 	}
-	sort.Slice(discovered, func(i, j int) bool { return discovered[i].Name < discovered[j].Name })
+	discovered = skill.WithBundled(discovered)
 	if len(discovered) > maxAutoSkillsPerProject {
 		discovered = discovered[:maxAutoSkillsPerProject]
 	}
 	return discovered
 }
 
-func readStandaloneSkillDir(skillDir string) (skill.Skill, bool) {
-	b, err := os.ReadFile(filepath.Join(skillDir, "SKILL.md"))
-	if err != nil || len(b) == 0 || len(b) > 256<<10 || !utf8.Valid(b) {
-		return skill.Skill{}, false
-	}
-	text := string(b)
-	name := filepath.Base(skillDir)
-	desc := "Project skill discovered in " + filepath.Base(filepath.Dir(skillDir))
-	body := text
-	if strings.HasPrefix(text, "---\n") || strings.HasPrefix(text, "---\r\n") {
-		if idx := strings.Index(text[4:], "\n---"); idx >= 0 {
-			header := text[4 : 4+idx]
-			rest := text[4+idx+4:]
-			body = strings.TrimPrefix( strings.TrimPrefix(rest, "\r"), "\n")
-			for _, line := range strings.Split(header, "\n") {
-				k, v, ok := strings.Cut(line, ":")
-				if !ok {
-					continue
-				}
-				k = strings.TrimSpace(k)
-				v = strings.Trim(strings.TrimSpace(v), `"'`)
-				if k == "name" && v != "" {
-					name = store.SanitizeAlias(v)
-				} else if k == "description" && v != "" {
-					desc = v
-				}
-			}
-		}
-	}
-	return skill.Skill{
-		Name:        name,
-		Description: desc,
-		Body:        body,
-		Source:      skillDir,
-		Digest:      "local",
-	}, true
-}
-
 // applyWorkspaceProjectContext automatically loads AGENTS.md (and CLAUDE.md)
-// plus discovered project skills into the turn's agent.Config when operating on a local workspace.
+// plus descriptions of available skills into the turn's agent.Config when operating on a local workspace.
 func applyWorkspaceProjectContext(opts options, cfg *agent.Config) {
 	if cfg == nil || strings.TrimSpace(cfg.Root) == "" {
 		return
@@ -194,20 +145,8 @@ func applyWorkspaceProjectContext(opts options, cfg *agent.Config) {
 		_ = registry.Close()
 	}
 
-	// 2. Auto-discover and load project skills
-	skills := DiscoverWorkspaceSkills(opts, cfg.Root)
-	activatedNames := make(map[string]bool)
-	for _, s := range skills {
-		if s.Name == "" {
-			continue
-		}
-		activatedNames[s.Name] = true
-		marker := "Active skill " + s.Name
-		if strings.Contains(cfg.Instructions, marker) {
-			continue
-		}
-		sections = append(sections, "Active skill "+s.Name+" ("+s.Description+"):\n"+s.Body)
-	}
+	// Skills are discovered as metadata; bodies are loaded only on selection.
+	attachSkillDiscovery(cfg, DiscoverWorkspaceSkills(opts, cfg.Root), opts)
 
 	// 3. Instruct the assistant to format workspace file and directory references as clickable links
 	linkGuidance := "Formatting note: When referencing files or directories in the workspace, format them as Markdown links with relative workspace paths (e.g. [internal/ui/chat.go](internal/ui/chat.go) or [cmd/bifrost/main.go:42](cmd/bifrost/main.go:42)) or backticked relative paths (`internal/ui/chat.go`) so the user can click them to open directly in the Bifrost viewer."
@@ -222,43 +161,6 @@ func applyWorkspaceProjectContext(opts options, cfg *agent.Config) {
 		}
 	}
 
-	// Ensure read_skill_resource tool is registered if we auto-activated skills and it's not yet present
-	if len(activatedNames) > 0 {
-		hasTool := false
-		for _, t := range cfg.ExtraTools {
-			if t.Definition.Name == "read_skill_resource" {
-				hasTool = true
-				break
-			}
-		}
-		if !hasTool {
-			if manager, err := skillManager(opts); err == nil && manager != nil {
-				cfg.ExtraTools = append(cfg.ExtraTools, agent.Tool{
-					Definition: provider.ToolDefinition{
-						Name:        "read_skill_resource",
-						Description: "Read a text resource from an active project or installed skill.",
-						Parameters:  json.RawMessage(`{"type":"object","required":["skill","path"],"properties":{"skill":{"type":"string"},"path":{"type":"string"}}}`),
-					},
-					Call: func(ctx context.Context, raw json.RawMessage) (string, error) {
-						if err := ctx.Err(); err != nil {
-							return "", err
-						}
-						var args struct {
-							Skill string `json:"skill"`
-							Path  string `json:"path"`
-						}
-						if err := json.Unmarshal(raw, &args); err != nil {
-							return "", err
-						}
-						if !activatedNames[args.Skill] {
-							return "", errors.New("skill is not activated")
-						}
-						return manager.ReadResource(args.Skill, args.Path)
-					},
-				})
-			}
-		}
-	}
 }
 
 func readBoundedUTF8File(path string, maxBytes int) (string, bool) {

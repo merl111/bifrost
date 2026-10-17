@@ -22,3 +22,9 @@ Final cleanup prompt:
 Initial direction: an original minimal bridge/portal emblem for a native Go AI
 developer workspace, with two structural uprights and an angular span, violet
 #b39cff and cyan #76dce4 accents, and the exact wordmark “Bifrost”.
+
+
+The terminal rendition lives in `internal/ui/brand.go`: ordinary Unicode cells in
+violet/cyan form the same portal/bridge, with a compact `|>|` ASCII alternative.
+`internal/ui/testdata/snapshots/tui-brand-160x48.ansi` is actual rendered TUI output;
+its README PNG companion uses DejaVu Sans Mono. No terminal bitmap protocol is used.

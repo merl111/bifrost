@@ -261,7 +261,7 @@ func (g *desktop) buildWelcome() {
 		symbol                int
 		title, detail, prompt string
 	}{
-		{cui.SymbolSearch, "Understand", "Map the codebase", "Explain this codebase: its main components, entry points, and how they fit together."},
+		{cui.SymbolSearch, "Understand", "Step through the code", ui.ExplanationPrompt("this codebase: its entry points and main flow")},
 		{cui.SymbolReply, "Review", "Find what needs attention", "Review my local changes for correctness and missing tests. Do not modify files."},
 		{cui.SymbolEdit, "Plan", "Shape the next change", "Help me plan a feature for this project. First ask what I want to build."},
 	} {

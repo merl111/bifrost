@@ -159,21 +159,24 @@ func WithReviewLoader(loader func(context.Context) (string, error)) Option {
 type Model struct {
 	mu sync.Mutex
 
-	root             string
-	tree             fileTree
-	dir              string
-	files            []FileEntry
-	selected         int
-	fileOffset       int
-	viewer           string
-	viewPath         string
-	viewErr          string
-	viewerOffset     int
-	viewerHighlights []ViewerHighlightRange
-	viewerBanner     string
-	viewerFlowSteps  []ViewerStep
-	viewerFlowIndex  int
-	viewerFlowTitle  string
+	root                    string
+	tree                    fileTree
+	dir                     string
+	files                   []FileEntry
+	selected                int
+	fileOffset              int
+	viewer                  string
+	viewPath                string
+	viewErr                 string
+	viewerOffset            int
+	viewerHighlights        []ViewerHighlightRange
+	viewerBanner            string
+	viewerFlowSteps         []ViewerStep
+	viewerFlowIndex         int
+	viewerFlowTitle         string
+	viewerExplanation       string
+	viewerExplanationOpen   bool
+	viewerExplanationOffset int
 
 	width                                                                        int
 	height                                                                       int
@@ -460,6 +463,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.startPaneDrag(mouse) {
 			return m, nil
 		}
+		if m.walkthroughMouse(mouse, false) {
+			return m, nil
+		}
 		if cmd, handled := m.clickViewerTab(mouse); handled {
 			return m, cmd
 		}
@@ -493,6 +499,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.settingsOpen {
 			m.settingsMouse(msg.Mouse(), true)
+			return m, nil
+		}
+		if m.walkthroughMouse(msg.Mouse(), true) {
 			return m, nil
 		}
 		return m, m.handleChatMouse(msg.Mouse(), true)
@@ -692,6 +701,8 @@ func (m *Model) updateReviewResult(msg reviewResultMsg) tea.Cmd {
 		}
 		return nil
 	}
+	m.closeWalkthrough()
+	m.viewerHighlights = nil
 	m.viewPath, m.viewer, m.viewErr = "review", msg.text, ""
 	m.viewerOffset = 0
 	m.focus = focusViewer
@@ -947,14 +958,20 @@ func (m *Model) handleNormalAction(stroke string) (tea.Cmd, bool) {
 			return m.copyChatSelectionOrLastReply(), true
 		}
 		return nil, false
+	case "x":
+		if m.focus == focusViewer && m.viewerTabIsFile() && len(m.viewerFlowSteps) > 0 {
+			m.viewerExplanationOpen = !m.viewerExplanationOpen
+			return nil, true
+		}
+		return nil, false
 	case "n":
-		if m.focus == focusViewer && len(m.viewerFlowSteps) > 0 {
+		if m.focus == focusViewer && m.viewerTabIsFile() && len(m.viewerFlowSteps) > 0 {
 			m.stepViewerFlow(1)
 			return nil, true
 		}
 		return nil, false
 	case "p":
-		if m.focus == focusViewer && len(m.viewerFlowSteps) > 0 {
+		if m.focus == focusViewer && m.viewerTabIsFile() && len(m.viewerFlowSteps) > 0 {
 			m.stepViewerFlow(-1)
 			return nil, true
 		}
@@ -1027,6 +1044,9 @@ func (m *Model) handleNormalAction(stroke string) (tea.Cmd, bool) {
 }
 
 func (m *Model) handleNormalNavigation(stroke string) bool {
+	if m.scrollExplanation(stroke) {
+		return true
+	}
 	switch stroke {
 	case "up", "k":
 		if m.focus == focusChat {
@@ -1116,6 +1136,8 @@ func (m *Model) openSelected() {
 		m.status = "unable to read file"
 		return
 	}
+	m.closeWalkthrough()
+	m.viewerHighlights = nil
 	m.viewPath, m.viewer, m.viewErr = path, content, ""
 	m.viewerOffset = 0
 	m.focus = focusViewer
@@ -1141,7 +1163,11 @@ func (m *Model) ensureFileVisible() {
 }
 
 func (m *Model) viewerViewport() int {
-	return maxInt(m.mainPaneHeight()-3, 1)
+	height := m.mainPaneHeight() - 3
+	if len(m.viewerFlowSteps) > 0 && !m.viewerExplanationOpen {
+		height -= len(m.walkthroughPreviewLines()) + 4
+	}
+	return max(1, height)
 }
 
 func (m *Model) clampViewerOffset() {
@@ -1205,7 +1231,7 @@ func (m *Model) renderScreen() string {
 	if m.ptyErr != "" {
 		statusText += "  error: " + sanitizeDisplay(m.ptyErr)
 	}
-	left := p.brand("  BIFROST  ") + p.quietText("/  "+displayDir(m.dir))
+	left := p.brand("  "+m.brandMark()+" BIFROST  ") + p.quietText("/  "+displayDir(m.dir))
 	if m.accountLabel != "" {
 		if p.enabled() {
 			left += lipgloss.NewStyle().Foreground(p.cyan).Background(lipgloss.Color("#213449")).Padding(0, 1).Render(m.providerIcon(m.connection.Provider) + " " + sanitizeDisplay(m.accountLabel))
@@ -1409,6 +1435,9 @@ func (m *Model) renderViewer() string {
 	if m.viewPath == "tasks" {
 		return m.renderTasks()
 	}
+	if m.viewerExplanationOpen && len(m.viewerFlowSteps) > 0 {
+		return m.renderWalkthroughExplanation()
+	}
 	if m.viewErr != "" {
 		return m.colors().dangerText(m.viewErr)
 	}
@@ -1469,11 +1498,7 @@ func (m *Model) renderViewer() string {
 	if end < len(allLines) {
 		formatted = append(formatted, "… more lines below")
 	}
-	header := "◆ " + sanitizeDisplay(m.viewPath)
-	if m.viewerBanner != "" {
-		header += "\n" + p.violetText("✦ "+sanitizeDisplay(m.viewerBanner))
-	}
-	return header + "\n" + strings.Join(formatted, "\n")
+	return m.viewerHeading() + "\n" + strings.Join(formatted, "\n")
 }
 
 func (m *Model) renderTerminal() string {

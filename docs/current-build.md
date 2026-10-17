@@ -1,5 +1,56 @@
 # Current implementation evidence — 15 October 2026
 
+## Guided explanations, task-aware skills and terminal identity — 17 October 2026
+
+Both frontends now accept `:explain TOPIC` to prepare a short, editable request.
+`viewer_flow` supports code, concept and supplied-diff steps, with separate
+explanations and bounded Back/Next navigation. Native controls provide a
+scrollable explanation panel; TUI `p/n/x`, clickable controls and wheel scrolling
+provide navigation and a full explanation view. Presentations are in-memory.
+They do not approve PRs, stage files, or persist review state. A normal file-open
+clears the old walkthrough. Unsent composer drafts are preserved.
+
+Four original embedded skills cover code exploration, debugging, change review
+and walkthroughs. Native agents see descriptions, choose skills with
+`skills_search`/`skills_activate`, then read referenced text through
+`read_skill_resource`. The previous blanket injection of discovered bodies has
+been removed. Explicit `--skill` activation still works. Project/global skills
+can override built-ins; selected resources are revision checked. No skill load
+executes scripts or enables permissions. Ripwire is optional and is not bundled.
+Vendor-managed backends cannot call these native tools; do not claim interactive
+walkthrough or model-driven Bifrost skill-tool coverage for those backends.
+
+The TUI includes a Unicode violet/cyan bridge mark, a compact header/welcome
+variant, and an ASCII fallback. Render geometry covers 32/40-column narrow views,
+80×24, 120×36 and 160×48 with dark/light/plain themes. The README adds two native
+explanation captures and two ANSI-rendered terminal fixtures.
+
+Verification:
+
+- Full root race suite passed; affected UI/CLI/skill race tests were rerun after
+  the final refactors. Root and desktop vet pass; desktop race tests pass.
+- The real GTK/Xvfb native fixture passed the full workspace sequence plus
+  concept/code/diff, Back/Next boundaries, return navigation, End walkthrough,
+  draft preservation and preparing a request without sending.
+- A live PTY smoke with disposable state/config confirmed `:explain` prepares an
+  editable request in the rebuilt TUI without calling a provider. Its first
+  assertion expected the beginning of a long draft, which the composer correctly
+  scrolled out of view; the request was shortened and the smoke rerun.
+- Regression coverage includes invalid/oversized walkthroughs, code highlights,
+  mouse coordinates, explanation scrolling, skill search without activation,
+  activation/resource ordering, path traversal, selected revision replacement,
+  default-skill precedence and preservation of explicit activation.
+- All four SKILL.md files pass the skill frontmatter validator. README image
+  references resolve. Both binaries rebuilt, including `CGO_ENABLED=0` TUI.
+- `ripwire . --quality-delta` against `ffeab30c7` has **0 gating regressions**,
+  **21 minor preexisting-worse findings** and **22 non-gating new-symbol findings**.
+  This is a Git-baseline delta, not evidence that historical repository debt is
+  resolved. Earlier counts below used a broader historical sidecar baseline.
+
+No paid/live-model skill-selection evaluation, vendor login, remote machine or
+production workspace was exercised. The tests demonstrate tool contracts and
+UI behavior with deterministic/disposable fixtures.
+
 ## Native CUI desktop increment — 17 October 2026
 
 The separate `desktop/` Go module builds `bin/bifrost-desktop`, a native Go+CUI

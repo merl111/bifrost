@@ -77,6 +77,63 @@ See [the desktop guide](docs/desktop.md) for custom CUI paths, prerequisites,
 permissions, all workflows and the test commands. The desktop lives in a separate
 Go module; the TUI still builds with `CGO_ENABLED=0`.
 
+## Step-by-step explanations and reviews
+
+Use `:explain how requests reach the database` in either UI, or click **Understand**
+on the desktop welcome screen. This prepares an editable request; press Send when
+ready. For a review, try `:explain the changes in this PR against main` and specify
+the actual PR or comparison base.
+
+With a native tool-capable provider, the agent inspects the source and presents a
+walkthrough combining concept explanations, highlighted code and actual diffs.
+Desktop offers Previous/Next and End walkthrough. In the TUI, focus the viewer
+and press `p` / `n`; `x` switches between code and the full scrollable explanation.
+The controls also accept mouse clicks and the mouse wheel scrolls the viewer.
+Navigation stops at the first and last step. `:walkthrough next|prev|explanation|code|close`
+provides the same actions through the shared command line. Viewing a step does
+not edit, stage, approve or publish changes. Walkthroughs currently live in the
+open workspace; they are not saved as reusable courses or PR review state.
+
+![Native code explanation with progress and navigation](docs/images/desktop-explanation-code.png)
+
+![Step-by-step review of an illustrative fixture diff](docs/images/desktop-explanation-review.png)
+
+## Skills selected for the task
+
+Four original skills are embedded in Bifrost: **code-explore**, **debug-trace**,
+**change-review**, and **code-walkthrough**. They work without downloads and guide
+bounded code exploration, diagnosis, review and explanation. Where useful, they
+recommend inspecting the installed Ripwire CLI and using its structural tools.
+Ripwire remains optional; file/symbol searches are the fallback. Its executable
+and upstream skill collection are not bundled.
+
+Native agents see skill descriptions and choose relevant instructions with
+`skills_search` and `skills_activate`. `read_skill_resource` reads referenced text
+only after selection or explicit activation. Bodies are no longer all injected
+on every workspace turn. Selection does not install software, run scripts,
+enable write/exec permissions, or change persistent project defaults. Project and
+global installed skills take precedence over built-ins. `bifrost skill list` and
+`bifrost skill show code-explore` inspect what ships; `--skill NAME` remains an
+explicit activation option.
+
+Discovery currently includes up to 256 available local/installed skills, including
+built-ins, with a bounded metadata prompt and paginated search. Public marketplace
+search federation remains separate work. Vendor-managed backends use their own
+tools: they cannot call these Bifrost skill or viewer tools, and explanations fall
+back to numbered chat steps. Tests use deterministic provider fixtures, not paid
+live-model evaluation of skill selection.
+
+## The terminal gets the same identity
+
+The TUI welcome screen now renders a violet/cyan cell-art version of the bridge
+logo. Small panes use a compact mark; `ui.icons ascii` uses `|>|`. Plain and light
+themes are preserved, with no image protocol or patched font requirement.
+These two terminal images are renders of actual ANSI fixtures at 160×48.
+
+![Bifrost terminal logo and welcome](docs/images/tui-brand-160x48.png)
+
+![Explanation and highlighted code in the terminal](docs/images/tui-explanation-160x48.png)
+
 ## Screenshot tour
 
 These are **screenshots of the running native application**, captured by the
@@ -469,7 +526,7 @@ bifrost skill market sources
 bifrost config set marketplace.catalog_url https://example.com/skills.json
 ```
 
-The built-in starter catalog contains three official OpenAI skills pinned to an immutable Git revision. A custom catalog has the shape `{"entries":[{"id":"team-coding","name":"Team coding","description":"Team conventions","repo":"https://github.com/owner/repo.git","ref":"FULL_COMMIT_SHA","path":"skills/coding"}]}`. Use an HTTPS catalog URL; the CLI also accepts `--catalog URL` per marketplace command. Explicit activation still uses `--skill NAME` or the project's configured skills.
+The built-in starter catalog contains three official OpenAI skills pinned to an immutable Git revision. A custom catalog has the shape `{"entries":[{"id":"team-coding","name":"Team coding","description":"Team conventions","repo":"https://github.com/owner/repo.git","ref":"FULL_COMMIT_SHA","path":"skills/coding"}]}`. Use an HTTPS catalog URL; the CLI also accepts `--catalog URL` per marketplace command. Explicit activation uses `--skill NAME` or the project's configured skills; native workspace agents can also select available installed/bundled skills on demand through the skill tools above.
 
 ## Browser, desktop, and VM guests
 

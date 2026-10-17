@@ -298,7 +298,7 @@ func activateSkills(opts options, cfg *agent.Config, skills string) error {
 			continue
 		}
 		seen[name] = true
-		loaded, err := manager.Load(name)
+		loaded, err := skill.LoadAvailable(manager, name)
 		if err != nil {
 			return err
 		}
@@ -321,7 +321,7 @@ func activateSkills(opts options, cfg *agent.Config, skills string) error {
 		if !seen[args.Skill] {
 			return "", errors.New("skill is not activated")
 		}
-		return manager.ReadResource(args.Skill, args.Path)
+		return skill.ReadAvailableResource(manager, args.Skill, args.Path)
 	}})
 	return nil
 }
@@ -334,6 +334,7 @@ func runAgent(ctx context.Context, opts options, args []string, stdout, stderr i
 	defer setup.cleanup()
 	cfg := setup.cfg
 	cfg.DisableStreaming = opts.json
+	applyWorkspaceProjectContext(opts, &cfg)
 	prompt := strings.Join(setup.rest, " ")
 	if strings.TrimSpace(prompt) == "" {
 		return errors.New("run requires a prompt")
@@ -554,7 +555,7 @@ func runSkill(ctx context.Context, opts options, args []string, stdout io.Writer
 		if err != nil {
 			return err
 		}
-		return writeJSON(stdout, v)
+		return writeJSON(stdout, skill.WithBundled(v))
 	case "install-git":
 		if len(args) != 4 {
 			return errors.New("skill install-git requires REPOSITORY REF SUBDIRECTORY")
@@ -577,7 +578,7 @@ func runSkill(ctx context.Context, opts options, args []string, stdout io.Writer
 		if len(args) != 2 {
 			return errors.New("skill show requires a name")
 		}
-		v, err := m.Load(args[1])
+		v, err := skill.LoadAvailable(m, args[1])
 		if err != nil {
 			return err
 		}

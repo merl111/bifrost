@@ -144,6 +144,22 @@ substitute for tests or a declaration of production readiness.
   capability-reported desktop actions, QMP/VBox lifecycle/snapshots, managed
   QEMU launch and optional guest SSH workers. Capabilities and test coverage vary.
 
+## Explanation and skill-selection increment — 17 October 2026
+
+- `:explain TOPIC` prepares an editable prompt; `:walkthrough` navigates code,
+  concept and diff steps in either frontend. TUI `p/n/x` and mouse controls expose
+  navigation/full explanation; native controls use a scrollable explanation panel.
+  Keep `viewer_flow` validation and both renderers synchronized. Presentations are
+  in-memory; PR approval/staging/publishing is not part of viewing a walkthrough.
+- Four original skills are embedded in `internal/skill/bundled`. Discovery exposes
+  descriptions; native agents select bodies via `skills_search`/`skills_activate`
+  and resources via `read_skill_resource`. Installing is not activation. Preserve
+  project/global-over-builtin precedence and explicit `--skill` resource access.
+  Vendor backends have their own tools and cannot call Bifrost's native skill/viewer
+  tools. Do not advertise interactive support there.
+- The TUI shares the bridge/portal identity through `internal/ui/brand.go`, with
+  small-window, ASCII, light and plain variants. Keep real cell-width geometry.
+
 ## Known gaps: do not advertise these as finished
 
 - The improved navigation specification in `docs/navigation.md` is the next

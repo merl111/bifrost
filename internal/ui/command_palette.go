@@ -21,6 +21,8 @@ type paletteCommand struct {
 }
 
 var paletteCommands = []paletteCommand{
+	{name: "explain", usage: "explain [TOPIC]", help: "prepare a step-by-step code or PR review request"},
+	{name: "walkthrough", usage: "walkthrough next|prev|explanation|code|close", help: "navigate the current explanation or review"},
 	{name: "accounts", aliases: []string{"account"}, usage: "accounts [add]", help: "switch or add provider accounts"},
 	{name: "chat", aliases: []string{"c"}, usage: "chat [new [NAME] | rename NAME | next | prev | close]", help: "focus chat or manage parallel chat tabs"},
 	{name: "compact", aliases: []string{"summarize"}, usage: "compact", help: "compact and summarize earlier conversation turns"},
@@ -141,6 +143,8 @@ func paletteSuggestions(input string) []paletteSuggestion {
 		for _, target := range paletteCommands {
 			values = append(values, target.name)
 		}
+	case "walkthrough":
+		values = []string{"next", "prev", "explanation", "code", "close"}
 	case "layout":
 		values = []string{"studio", "conversation", "review", "focus"}
 	case "terminal":
@@ -311,6 +315,8 @@ func (m *Model) executePaletteCommand(input string) tea.Cmd {
 		return nil
 	}
 	switch command.name {
+	case "explain", "walkthrough":
+		return m.walkthroughCommand(command.name, args)
 	case "help":
 		if len(args) == 1 {
 			if target, ok := paletteCommandFor(args[0]); ok {

@@ -17,16 +17,24 @@ type viewerState struct {
 	index                     int
 	title                     string
 	bar, note, previous, next cui.Widget
+	explanation, close        cui.Widget
 }
 
 func (g *desktop) buildViewerControls() {
 	v := &g.viewer
 	v.bar = g.sourcePage.Box(cui.Vertical, 6)
-	v.note = label(v.bar, "", 10, muted)
+	v.note = label(v.bar, "", 11, violet)
+	v.explanation = v.bar.Textarea("")
+	v.explanation.ReadOnly(true)
+	v.explanation.MinSize(0, 145)
+	v.explanation.Font("", 12, 400)
+	v.explanation.Accessibility("Step explanation", "Scrollable explanation for the selected walkthrough step")
+	v.explanation.SetVisible(false)
 	row := v.bar.Box(cui.Horizontal, 6)
 	v.edit = button(row, "Edit file", g.editViewedSource)
 	v.previous = button(row, "Previous step", func() { g.viewerStep(-1) })
 	v.next = button(row, "Next step", func() { g.viewerStep(1) })
+	v.close = button(row, "End walkthrough", g.closeWalkthrough)
 	v.bar.SetVisible(false)
 }
 
@@ -40,9 +48,9 @@ func (g *desktop) receiveViewer(e ui.ChatEvent) {
 		g.showError(fmt.Errorf("viewer command: %w", err))
 		return
 	}
-	g.viewer.steps = nil
 	if p.Action == "flow" {
-		if len(p.Steps) == 0 {
+		if err := ui.ValidateWalkthrough(p.Steps); err != nil {
+			g.showError(err)
 			return
 		}
 		g.viewer.steps = append([]ui.ViewerStep(nil), p.Steps...)
@@ -51,6 +59,7 @@ func (g *desktop) receiveViewer(e ui.ChatEvent) {
 		g.viewerStep(1)
 		return
 	}
+	g.viewer.steps = nil
 	g.displayViewer(p)
 }
 
@@ -59,9 +68,8 @@ func (g *desktop) viewerStep(delta int) {
 	if len(v.steps) == 0 {
 		return
 	}
-	v.index = (v.index + delta + len(v.steps)) % len(v.steps)
-	s := v.steps[v.index]
-	g.displayViewer(ui.ViewerCommandPayload{Action: "open", Path: s.Path, Title: s.Title, StartLine: s.StartLine, EndLine: s.EndLine, Note: fmt.Sprintf("%s · Step %d/%d · %s", v.title, v.index+1, len(v.steps), s.Note)})
+	v.index = max(0, min(v.index+delta, len(v.steps)-1))
+	g.displayViewer(ui.WalkthroughStep(v.title, v.steps, v.index))
 }
 
 func (g *desktop) displayViewer(p ui.ViewerCommandPayload) {
@@ -89,6 +97,12 @@ func (g *desktop) displayViewer(p ui.ViewerCommandPayload) {
 	g.previewTitle.Tooltip(title)
 	g.setEditorText("Loading…")
 	g.viewer.note.SetText(safeText(p.Note))
+	g.viewer.explanation.SetText(cleanText(p.Explanation))
+	g.viewer.explanation.SetTextRange(0, 0)
+	g.viewer.explanation.SetVisible(p.Explanation != "")
+	g.viewer.previous.SetEnabled(g.viewer.index > 0)
+	g.viewer.next.SetEnabled(g.viewer.index+1 < len(g.viewer.steps))
+	g.viewer.close.SetVisible(len(g.viewer.steps) > 0)
 	g.viewer.bar.SetVisible(p.Note != "" || len(g.viewer.steps) > 0 || p.Path != "")
 	g.viewer.edit.SetVisible(p.Path != "" && p.Action == "open")
 	g.viewer.previous.SetVisible(len(g.viewer.steps) > 0)
@@ -101,7 +115,7 @@ func (g *desktop) displayViewer(p ui.ViewerCommandPayload) {
 				r, e := g.ws.Backend.Review(ctx)
 				err = e
 				content = r.Text()
-			} else if p.Path != "" {
+			} else if p.Path != "" && p.Action == "open" {
 				content, _, err = g.ws.Backend.Read(ctx, p.Path)
 			}
 		}
@@ -114,7 +128,7 @@ func (g *desktop) displayViewer(p ui.ViewerCommandPayload) {
 				g.setEditorText(err.Error())
 				return
 			}
-			if p.Action == "open" && p.Path != "" {
+			if p.Action == "open" && p.Path != "" && p.Content == "" {
 				g.viewer.path = p.Path
 				g.viewer.edit.SetEnabled(true)
 				g.mention.SetEnabled(true)
@@ -162,4 +176,51 @@ func (g *desktop) editViewedSource() {
 	} else {
 		g.showFiles()
 	}
+}
+
+func (g *desktop) closeWalkthrough() {
+	v := &g.viewer
+	v.steps = nil
+	v.previous.SetVisible(false)
+	v.next.SetVisible(false)
+	v.close.SetVisible(false)
+	v.explanation.SetVisible(false)
+	v.note.SetText("Walkthrough closed")
+}
+
+func (g *desktop) commandExplain(a []string) error {
+	draft := strings.TrimSpace(g.composer.Text())
+	if draft != "" && !strings.HasPrefix(draft, ":explain") {
+		return fmt.Errorf("send or clear the current draft first")
+	}
+	g.setPrompt(ui.ExplanationPrompt(strings.Join(a, " ")))
+	return nil
+}
+func (g *desktop) commandWalkthrough(a []string) error {
+	if len(a) != 1 {
+		return fmt.Errorf("choose next, prev, explanation, code, or close")
+	}
+	if len(g.viewer.steps) == 0 {
+		return fmt.Errorf("no walkthrough loaded; use :explain TOPIC")
+	}
+	g.showSourcePage()
+	if !g.inspectorVisible {
+		g.toggleInspector()
+	}
+	switch a[0] {
+	case "next":
+		g.viewerStep(1)
+	case "prev":
+		g.viewerStep(-1)
+	case "explanation":
+		g.viewer.explanation.SetVisible(true)
+		g.viewer.explanation.Focus()
+	case "code":
+		g.preview.Focus()
+	case "close":
+		g.closeWalkthrough()
+	default:
+		return fmt.Errorf("unknown walkthrough action")
+	}
+	return nil
 }

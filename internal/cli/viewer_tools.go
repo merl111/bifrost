@@ -19,7 +19,7 @@ import (
 // Bifrost VIEWER pane so it can open files, highlight requested functions or
 // line ranges, show diffs, and walk the user through multi-step code flows.
 func attachWorkspaceViewerTools(cfg *agent.Config, emit func(ui.ChatEvent)) {
-	if cfg == nil || emit == nil {
+	if cfg == nil || emit == nil || cfg.RunExternal != nil {
 		return
 	}
 	for _, t := range cfg.ExtraTools {
@@ -29,7 +29,7 @@ func attachWorkspaceViewerTools(cfg *agent.Config, emit func(ui.ChatEvent)) {
 	}
 
 	root := cfg.Root
-	viewerGuidance := "Viewer tools: When the user asks you to show code, highlight a function/type/section, show a diff, or walk through a code flow in the viewer, call `viewer_open`, `viewer_diff`, or `viewer_flow` so it immediately opens and highlights in the Bifrost VIEWER pane."
+	viewerGuidance := "Viewer tools: When the user asks you to show code, highlight a function/type/section, show a diff, or walk through a code flow in the viewer, call `viewer_open`, `viewer_diff`, or `viewer_flow` so it immediately opens and highlights in the Bifrost VIEWER pane. For step-by-step explanations, concepts and PR reviews, inspect the code/diff first and use viewer_flow with a title and explanation for each step. Mix code, concept and diff steps; diff content must be the actual reviewed diff, not invented changes."
 	if !strings.Contains(cfg.Instructions, "Viewer tools: When the user asks you to show code") {
 		cfg.Instructions = strings.TrimSpace(cfg.Instructions + "\n\n" + viewerGuidance)
 	}
@@ -155,7 +155,7 @@ func attachWorkspaceViewerTools(cfg *agent.Config, emit func(ui.ChatEvent)) {
 		agent.Tool{
 			Definition: provider.ToolDefinition{
 				Name:        "viewer_flow",
-				Description: "Present an interactive multi-step code flow or call-chain walkthrough in the Bifrost VIEWER pane. The first step opens immediately with highlights, and the user can press n/p in the viewer to step through the flow.",
+				Description: "Present an interactive step-by-step explanation, concept lesson, code flow or PR review in the Bifrost VIEWER pane. The first step opens immediately with highlights, and the user can press n/p in the viewer to step through the flow.",
 				Parameters: json.RawMessage(`{
 					"type": "object",
 					"required": ["steps"],
@@ -166,8 +166,10 @@ func attachWorkspaceViewerTools(cfg *agent.Config, emit func(ui.ChatEvent)) {
 							"description": "Ordered sequence of code locations in the flow",
 							"items": {
 								"type": "object",
-								"required": ["path"],
 								"properties": {
+									"kind": {"type":"string", "enum":["code","concept","diff"]},
+									"explanation": {"type":"string", "description":"Explain what happens, why it matters and how it connects to the next step"},
+									"content": {"type":"string", "description":"Code snippet or actual unified diff; required for diff steps"},
 									"title": {"type": "string"},
 									"path": {"type": "string"},
 									"start_line": {"type": "integer"},
@@ -187,8 +189,11 @@ func attachWorkspaceViewerTools(cfg *agent.Config, emit func(ui.ChatEvent)) {
 				if err := json.Unmarshal(raw, &args); err != nil {
 					return "", err
 				}
-				if len(args.Steps) == 0 {
-					return "", errors.New("steps cannot be empty")
+				if err := ctx.Err(); err != nil {
+					return "", err
+				}
+				if err := ui.ValidateWalkthrough(args.Steps); err != nil {
+					return "", err
 				}
 				payload := ui.ViewerCommandPayload{
 					Action: "flow",

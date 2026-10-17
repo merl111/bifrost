@@ -71,6 +71,7 @@ func (g *desktop) updateEditorActions() {
 }
 
 func (g *desktop) openEditor(path string) {
+	g.viewer.steps = nil
 	g.viewer.bar.SetVisible(false)
 	g.viewer.path = ""
 	g.rememberEditor()

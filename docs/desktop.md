@@ -185,7 +185,7 @@ resize instead of scaling an old screenshot.
 
 | Workflow | Desktop path and shared implementation |
 | --- | --- |
-| Commands | All 23 canonical TUI commands and their aliases, completion and help; a test fails if a registry entry has no native handler. |
+| Commands | All 25 canonical TUI commands and their aliases, completion and help; a test fails if a registry entry has no native handler. |
 | Chat and sessions | Streaming, cancellation, new/resume, tabs, history, account/model changes and compaction through the same runtime and session store. |
 | Files and editor | Rooted reads/writes, revision conflicts, shared editing/search/undo engine and shared durable draft format. |
 | Viewer and review | Agent file/highlight/diff/snippet/walkthrough events, Next/Previous and the existing review backend. |
@@ -288,3 +288,27 @@ Actual native captures (local model fixture, not production inference):
 The structural quality check remains non-clean against the historical baseline;
 it must not be represented as a clean merge gate. See current-build evidence for
 the exact validation recorded for this increment.
+
+
+### Explanation mode and task-aware skills — 17 October 2026
+
+`:explain TOPIC` prepares a request in the composer without sending it or replacing
+an unsent draft. Understand on the welcome screen prepares the same workflow.
+The shared `viewer_flow` contract accepts code, concept and diff steps. A separate
+scrollable explanation appears above the source/diff, with progress, Previous,
+Next and End walkthrough. Back/Next clamps at the boundaries. Line highlighting
+uses displayed content coordinates; supplied diff text never becomes an editable
+file. Existing editor drafts survive viewer navigation and stale asynchronous
+file reads are still ignored. `:walkthrough` exposes the actions through command
+completion/help. Presentations are currently in-memory, not saved review state.
+
+The native fixture covers concept → code → diff, return navigation, boundary
+behavior, close, draft preservation and preparing a request without sending.
+The README's explanation screenshots use disposable fixture code and an illustrative
+diff. The shared skill tools implement metadata-first discovery, model-selected
+activation and revision-checked resources; see [task-aware skills](../README.md#skills-selected-for-the-task).
+They require Bifrost's native tool loop. Vendor clients do not expose these tools.
+
+The skill loading design follows the primary [Agent Skills integration guidance](https://github.com/agentskills/agentskills/blob/main/docs/client-implementation/adding-skills-support.mdx).
+Bundled guidance is original Bifrost content; no Ripwire implementation or upstream
+skill files are copied, and no extra runtime dependency is installed.

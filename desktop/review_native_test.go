@@ -14,6 +14,9 @@ import (
 
 // Error paths use disposable state and real native controls. No provider calls.
 func (p *nativeParity) reviewParity(g *desktop) (bool, error) {
+	if p.step >= 170 {
+		return p.walkthroughParity(g)
+	}
 	fail := func(s string) (bool, error) { return false, fmt.Errorf("review phase %d: %s", p.step, s) }
 	s := &g.workbench.settings
 	switch p.step {
@@ -184,7 +187,8 @@ func (p *nativeParity) reviewParity(g *desktop) (bool, error) {
 				return fail("profile selector restored an obsolete account")
 			}
 		}
-		return true, nil
+		p.step = 170
+		return false, nil
 	}
 	p.step++
 	return false, nil

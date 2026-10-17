@@ -1,0 +1,8 @@
+/bin/
+/.bifrost/
+*.test
+/coverage.out
+/.ripwire_quality_baseline
+
+# Local third-party application analysis artifacts
+.research/

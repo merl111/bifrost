@@ -1,0 +1,654 @@
+diff --git a/bindings/go/search_feedback.go b/bindings/go/search_feedback.go
+index a472150..6da7c85 100644
+--- a/bindings/go/search_feedback.go
++++ b/bindings/go/search_feedback.go
+@@ -58,6 +58,10 @@ const (
+ 	KeyEnd       = 259
+ 	KeyPageUp    = 260
+ 	KeyPageDown  = 261
++	KeyLeft      = 262
++	KeyRight     = 263
++	KeyDelete    = 264
++	KeyInsert    = 265
+ )
+ 
+ func (t Timer) Start() bool { t.app.check(); return C.cui_timer_start(t.ptr) != 0 }
+@@ -67,7 +71,8 @@ type keyCallback struct {
+ 	fn  func(int, uint) bool
+ }
+ 
+-// OnKey replaces the navigation-key handler. Nil removes it; true consumes a key.
++// OnKey replaces the key handler. Code controls additionally report printable ASCII.
++// Nil removes it; true consumes a key. Return false for native text input.
+ func (w Widget) OnKey(fn func(int, uint) bool) bool {
+ 	w.app.check()
+ 	if fn == nil {
+@@ -178,9 +183,9 @@ func (w Widget) PickerItems(items []Choice) bool {
+ 	defer release()
+ 	return ok && C.cui_picker_set_items(w.ptr, p, C.size_t(len(items))) != 0
+ }
+-func (w Widget) PickerSetChrome(headings,status,actions bool) bool {
+- w.app.check()
+- return C.cui_picker_set_chrome(w.ptr,C.int(boolIntIcon(headings)),C.int(boolIntIcon(status)),C.int(boolIntIcon(actions)))!=0
++func (w Widget) PickerSetChrome(headings, status, actions bool) bool {
++	w.app.check()
++	return C.cui_picker_set_chrome(w.ptr, C.int(boolIntIcon(headings)), C.int(boolIntIcon(status)), C.int(boolIntIcon(actions))) != 0
+ }
+ func (w Widget) PickerSetQuery(query string) bool {
+ 	w.app.check()
+diff --git a/bindings/python/cui/__init__.py b/bindings/python/cui/__init__.py
+index ea4a9ec..18e30bc 100644
+--- a/bindings/python/cui/__init__.py
++++ b/bindings/python/cui/__init__.py
+@@ -291,6 +291,7 @@ PICKER_NONE, PICKER_QUERY, PICKER_SELECT, PICKER_SUBMIT, PICKER_CANCEL = range(5
+ PICKER_INPUT, PICKER_RESULTS, PICKER_STATUS, PICKER_ACCEPT, PICKER_CLOSE = range(5)
+ KEY_BACKSPACE, KEY_TAB, KEY_ENTER, KEY_ESCAPE = 8, 9, 13, 27
+ KEY_UP, KEY_DOWN, KEY_HOME, KEY_END, KEY_PAGE_UP, KEY_PAGE_DOWN = range(256, 262)
++KEY_LEFT, KEY_RIGHT, KEY_DELETE, KEY_INSERT = range(262, 266)
+ class Choice(C.Structure):
+     _fields_ = [('id', C.c_uint64), ('label', S), ('detail', S), ('keywords', S), ('disabled', I)]
+     def __init__(self, id, label, detail='', keywords='', disabled=False):
+diff --git a/bindings/rust/src/sys.rs b/bindings/rust/src/sys.rs
+index 691e425..59b334e 100644
+--- a/bindings/rust/src/sys.rs
++++ b/bindings/rust/src/sys.rs
+@@ -18,6 +18,10 @@ pub const CUI_KEY_HOME: cui_key = 258;
+ pub const CUI_KEY_END: cui_key = 259;
+ pub const CUI_KEY_PAGE_UP: cui_key = 260;
+ pub const CUI_KEY_PAGE_DOWN: cui_key = 261;
++pub const CUI_KEY_LEFT: cui_key = 262;
++pub const CUI_KEY_RIGHT: cui_key = 263;
++pub const CUI_KEY_DELETE: cui_key = 264;
++pub const CUI_KEY_INSERT: cui_key = 265;
+ pub type cui_axis = c_int;
+ pub const CUI_HORIZONTAL: cui_axis = 0;
+ pub const CUI_VERTICAL: cui_axis = 1;
+diff --git a/cmake/CuiWinUI.cmake b/cmake/CuiWinUI.cmake
+index 4f2bcf2..20e9f51 100644
+--- a/cmake/CuiWinUI.cmake
++++ b/cmake/CuiWinUI.cmake
+@@ -114,6 +114,11 @@ if(CUI_BUILD_TESTS)
+     target_compile_options(cui_winui_test PRIVATE /UNDEBUG)
+     add_test(NAME winui_contracts COMMAND cui_winui_test)
+     set_tests_properties(winui_contracts PROPERTIES TIMEOUT 45)
++    cui_windows_executable(cui_winui_memory_test tests/winui_memory.c)
++    target_compile_options(cui_winui_memory_test PRIVATE /UNDEBUG)
++    target_link_libraries(cui_winui_memory_test PRIVATE psapi user32)
++    add_test(NAME winui_memory COMMAND cui_winui_memory_test)
++    set_tests_properties(winui_memory PROPERTIES TIMEOUT 90 RUN_SERIAL TRUE)
+ endif()
+ install(FILES "$<TARGET_FILE:cui>" "${CMAKE_BINARY_DIR}/${CUI_WINUI_CONFIG}/Microsoft.WindowsAppRuntime.Bootstrap.dll" DESTINATION bin)
+ install(FILES "$<TARGET_LINKER_FILE:cui>" DESTINATION lib)
+diff --git a/docs/desktop.md b/docs/desktop.md
+index 4d41d24..9dbb25a 100644
+--- a/docs/desktop.md
++++ b/docs/desktop.md
+@@ -114,7 +114,7 @@ Include `cui_feedback.h` for banners, in-app toasts, empty states and error stat
+ 
+ Only toasts accept expiry durations; 0 means persistent. Countdown pauses while explicitly paused, hidden through an ancestor, disabled, hovered, or focused through a descendant. Re-showing resets the clock and reuses its timer. Action does not dismiss automatically. User action, dismissal and timeout emit separate root events; programmatic show/dismiss/pause are silent. A callback may show the same region again, including from its timeout callback. GTK 4.14+ and AppKit use native accessibility announcements; older GTK uses accessible text and Windows emits an accessibility notification. Screen-reader verification still requires native hosts.
+ 
+-`cui_timer_start` restarts a stopped app-owned timer; calling it on a running timer is harmless. `cui_on_key` exposes navigation keys on entry/search/password and list/table controls. Return true to consume the key. Modifiers use `CUI_MOD_*`; Control also sets `PRIMARY` on Windows/Linux. Remove the handler with NULL. Text changes continue to use the ordinary action callback.
++`cui_timer_start` restarts a stopped app-owned timer; calling it on a running timer is harmless. `cui_on_key` exposes navigation keys on entry/search/password and list/table controls, including Left/Right/Delete/Insert. Control+A..Z arrives as uppercase ASCII with CONTROL set unless a window command consumes it first. Return true to consume the key. Modifiers use `CUI_MOD_*`; Control also sets `PRIMARY` on Windows/Linux. Remove the handler with NULL. Text changes continue to use the ordinary action callback. This allows native entry controls to forward terminal navigation while preserving native text composition.
+ 
+ The C desktop gallery's **Search & feedback** and **Labels** tabs demonstrate actual selection, theme commands, file/font dialog commands, label validation, notifications and recovery actions.
+ 
+@@ -181,3 +181,11 @@ inside a Linux split pane while preserving its owned box handle and children.
+ This is useful for forms whose native minimum size exceeds a small window. The
+ other backends return zero. Use the returned capability result when targeting
+ multiple platforms. Text areas continue to have their own native scrolling.
++
++Code controls accept `cui_on_key` and report printable ASCII, preserving case and
++punctuation, for optional modal editors. Return zero to keep native input; IME
++composition retains its keys. This addition has Linux runtime coverage.
++
++`cui_code` starts read-only. `cui_set_read_only(code, 0)` enables native editing
++and action notifications; re-enabling read-only also blocks `cui_insert_text`.
++The Linux native tests check this state transition and printable code keys.
+diff --git a/docs/guides/memory-safety.md b/docs/guides/memory-safety.md
+index 30f90d3..9266843 100644
+--- a/docs/guides/memory-safety.md
++++ b/docs/guides/memory-safety.md
+@@ -1,6 +1,6 @@
+ # Memory safety and leak checks
+ 
+-CUI uses several independent checks. Passing them means the exercised paths had no reported errors; it does not prove that every C execution is safe. These are development tools, not shipped library dependencies. The current executed backend is Linux/GTK. Windows and macOS verification is deferred.
++CUI uses several independent checks. Passing them means the exercised paths had no reported errors; it does not prove that every C execution is safe. These are development tools, not shipped library dependencies. The safety-tool suite described below has been executed on Linux/GTK. The separate Windows repaint investigation records native Windows test results and their limits; macOS verification is deferred.
+ 
+ ## Run the checks
+ 
+@@ -69,6 +69,53 @@ Two additional Valgrind conditional-value exceptions are restricted to librsvg 2
+ 
+ The Ubuntu reproduction passes all five selected Memcheck workloads and the ASan/UBSan suite (43 tests passed, one window-manager-dependent test skipped). The new populated/empty table weak-reference checks also pass under ASan at normal and 2× scale. Clang static analysis reports no bugs. The older Arch host's missing loader symbols remain an environment limitation; those failed starts are not counted as verification.
+ 
++## Windows repaint allocation investigation
++
++An experiment reused the existing `WriteableBitmap` for same-size frames instead
++of replacing it on every canvas presentation. Native comparisons did not show a
++material memory reduction, so the experiment was removed. The regression test
++and improved exception diagnostics remain. Linux renderer measurements cannot
++answer the separate Windows memory question.
++
++With a native Windows build and `CUI_BUILD_TESTS=ON`, run:
++
++```powershell
++ctest --test-dir build -C Release -R "winui_memory|winui_contracts" -V
++```
++
++`winui_memory` performs 1,000 canvas updates, changes backing scale from 1 to 2
++and back, changes opacity, waits for presentation work to settle, then tears down
++the app. It logs working set, private commit, process handles and GDI/USER object
++counts. Compare the same workload before and after on the same Windows host.
++Memory values are diagnostic output, not a fixed pass threshold; passing the
++functional assertions alone does not prove stable memory or absence of leaks.
++On 2026-10-15, both variants built with MSVC 19.44 and Windows SDK 10.0.26100
++and ran in the local Windows 11 VM. Both contract and repaint tests returned
++success. At step 400, baseline/fixed private commit was 21.16/20.98 MiB;
++after resizing and settling it was 27.14/27.00 MiB. Peak sampled working set
++was approximately 112 MiB in both. This does **not** demonstrate a material
++memory reduction or reproduce Archaic's reported growth to 300 MB.
++
++Both variants also triggered an access violation observed by the diagnostic
++handler during COM teardown, inside `Microsoft.UI.Xaml.Controls.dll`
++(Windows App Runtime 1.8, package version 8000.994.2142.0). Execution continued
++and the processes returned success; a vectored exception handler sees exceptions
++that may subsequently be handled. These runs are therefore not described as
++exception-free. The diagnostic now reports the faulting module and avoids
++incorrectly labeling every observed exception as unhandled. A normal synced
++Archaic session subsequently reached about 310–320 MiB of total working set and
++200–210 MiB of private commit, with roughly 195–198 MB in Task Manager. Its image
++cache held about 10 MiB, and memory flattened while idle. This is not a reproduction
++of 300 MB in Task Manager or proof of an unbounded leak. Windows heap snapshots
++showed growing allocations through Archaic's SQLite dependency; its connection-pool
++budget was reduced in the application, independently of CUI rendering. In a
++matched nine-chat workload with the same CUI DLL, Archaic's median private commit
++fell from 124.99 to 77.04 MiB. This result measures a specific SQLite configuration
++change and workload; it is not a universal application-memory limit.
++
++The buffer-update mechanism follows Microsoft's
++[WriteableBitmap API](https://learn.microsoft.com/en-us/windows/windows-app-sdk/api/winrt/microsoft.ui.xaml.media.imaging.writeablebitmap?view=windows-app-sdk-1.8).
++
+ ## Evidence and limits
+ 
+ The completed 30-second fuzz runs processed 25,310,636 icon inputs, 2,755,762 model inputs and 12,105,547 layout inputs with no reported sanitizer findings. These are bounded smoke campaigns: model inputs contain at most 32 entries and layouts at most 16 immediate children. Existing deterministic GUI tests cover larger models. Preserve any crashing input and add a focused regression after fixing its cause.
+diff --git a/include/cui.h b/include/cui.h
+index 8e0dfba..1107998 100644
+--- a/include/cui.h
++++ b/include/cui.h
+@@ -16,12 +16,16 @@ typedef void (*cui_task)(void *userdata);
+ typedef enum cui_key {
+     CUI_KEY_BACKSPACE=8, CUI_KEY_TAB=9, CUI_KEY_ENTER=13, CUI_KEY_ESCAPE=27,
+     CUI_KEY_UP=256, CUI_KEY_DOWN, CUI_KEY_HOME, CUI_KEY_END,
+-    CUI_KEY_PAGE_UP, CUI_KEY_PAGE_DOWN
++    CUI_KEY_PAGE_UP, CUI_KEY_PAGE_DOWN,
++    CUI_KEY_LEFT, CUI_KEY_RIGHT, CUI_KEY_DELETE, CUI_KEY_INSERT
+ } cui_key;
+-/* Navigation keys on entry/search/password/textarea/canvas and list/table controls. Return 1 to consume.
++/* Navigation keys on entry/search/password/textarea/code/canvas and list/table controls. Return 1 to consume.
+  * Active IME composition retains the keys it needs. Modifiers use CUI_MOD_*
+  * from cui_desktop.h; Control also sets PRIMARY on Windows/Linux. NULL removes
+- * the handler; text edits still use on_action. */
++ * the handler; text edits still use on_action. Control+A..Z is reported as
++ * uppercase ASCII with CONTROL set, unless an app shortcut consumes it.
++ * Code controls also report unmodified printable ASCII (32..126), preserving
++ * case and punctuation, for optional modal editing. Return 0 for native input. */
+ typedef int (*cui_key_callback)(cui_widget *, cui_key, unsigned modifiers, void *userdata);
+ int cui_on_key(cui_widget *entry, cui_key_callback callback, void *userdata);
+ 
+diff --git a/include/cui_desktop.h b/include/cui_desktop.h
+index 991a4b1..4c5203e 100644
+--- a/include/cui_desktop.h
++++ b/include/cui_desktop.h
+@@ -10,6 +10,9 @@ int cui_has_focus(const cui_widget *widget);
+ /* Deepest focused widget in this subtree, or NULL. Borrowed until app destruction. */
+ cui_widget *cui_focused_descendant(const cui_widget *widget);
+ void cui_accessibility(cui_widget *widget, const char *label, const char *description);
++/* Entry/search/password/textarea/code controls. Code starts read-only; pass 0
++ * to enable native editing and on_action changes. Programmatic set_text remains
++ * available in either mode; insert_text respects the read-only state. */
+ void cui_set_read_only(cui_widget *widget, int read_only);
+ void cui_undo(cui_widget *widget);
+ void cui_redo(cui_widget *widget);
+diff --git a/src/cui.c b/src/cui.c
+index ad31c9c..8ea0e16 100644
+--- a/src/cui.c
++++ b/src/cui.c
+@@ -139,6 +139,7 @@ static cui_widget *create_widget(cui_window *window, cui_widget *parent,
+     widget->window = window;
+     widget->parent = parent;
+     widget->kind = kind;
++    widget->read_only = kind == CUI_CODE;
+     widget->axis = axis;
+     widget->gap = gap;
+     widget->enabled = 1; widget->opacity = 1;
+diff --git a/src/cui_gtk_desktop.c b/src/cui_gtk_desktop.c
+index 05971f4..d7e5b38 100644
+--- a/src/cui_gtk_desktop.c
++++ b/src/cui_gtk_desktop.c
+@@ -20,21 +20,21 @@ void cui_accessibility(cui_widget *w,const char *label,const char *description)
+ {if(w)gtk_accessible_update_property(GTK_ACCESSIBLE(input(w)),GTK_ACCESSIBLE_PROPERTY_LABEL,label?label:"",GTK_ACCESSIBLE_PROPERTY_DESCRIPTION,description?description:"",-1);}
+ void cui_set_read_only(cui_widget *w,int read_only)
+ {
+-    if(!w || !(w->kind==CUI_ENTRY || w->kind==CUI_PASSWORD || w->kind==CUI_SEARCH || w->kind==CUI_TEXTAREA))return;
++    if(!w || !(w->kind==CUI_ENTRY || w->kind==CUI_PASSWORD || w->kind==CUI_SEARCH || w->kind==CUI_TEXTAREA || w->kind==CUI_CODE))return;
+     w->read_only=!!read_only;
+-    if(w->kind==CUI_TEXTAREA)gtk_text_view_set_editable(GTK_TEXT_VIEW(w->aux),!read_only);
++    if(w->kind==CUI_TEXTAREA || w->kind==CUI_CODE)gtk_text_view_set_editable(GTK_TEXT_VIEW(w->aux),!read_only);
+     else if(GTK_IS_EDITABLE(w->native))gtk_editable_set_editable(GTK_EDITABLE(w->native),!read_only);
+ }
+ void cui_undo(cui_widget *w)
+ {
+     if(!w)return;
+-    if(w->kind==CUI_TEXTAREA){GtkTextBuffer *b=gtk_text_view_get_buffer(GTK_TEXT_VIEW(w->aux));if(gtk_text_buffer_get_can_undo(b))gtk_text_buffer_undo(b);}
++    if(w->kind==CUI_TEXTAREA || w->kind==CUI_CODE){GtkTextBuffer *b=gtk_text_view_get_buffer(GTK_TEXT_VIEW(w->aux));if(gtk_text_buffer_get_can_undo(b))gtk_text_buffer_undo(b);}
+     else gtk_widget_activate_action(input(w),"text.undo",NULL);
+ }
+ void cui_redo(cui_widget *w)
+ {
+     if(!w)return;
+-    if(w->kind==CUI_TEXTAREA){GtkTextBuffer *b=gtk_text_view_get_buffer(GTK_TEXT_VIEW(w->aux));if(gtk_text_buffer_get_can_redo(b))gtk_text_buffer_redo(b);}
++    if(w->kind==CUI_TEXTAREA || w->kind==CUI_CODE){GtkTextBuffer *b=gtk_text_view_get_buffer(GTK_TEXT_VIEW(w->aux));if(gtk_text_buffer_get_can_redo(b))gtk_text_buffer_redo(b);}
+     else gtk_widget_activate_action(input(w),"text.redo",NULL);
+ }
+ static void alert_response(GtkDialog *native,int response,gpointer data)
+diff --git a/src/cui_gtk_keys.c b/src/cui_gtk_keys.c
+index f6a0012..d1e2f24 100644
+--- a/src/cui_gtk_keys.c
++++ b/src/cui_gtk_keys.c
+@@ -16,7 +16,15 @@ static gboolean pressed(GtkEventControllerKey *controller,guint key,guint code,G
+     case GDK_KEY_End:value=CUI_KEY_END;break;
+     case GDK_KEY_Page_Up:value=CUI_KEY_PAGE_UP;break;
+     case GDK_KEY_Page_Down:value=CUI_KEY_PAGE_DOWN;break;
+-    default:return FALSE;
++    case GDK_KEY_Left:value=CUI_KEY_LEFT;break;
++    case GDK_KEY_Right:value=CUI_KEY_RIGHT;break;
++    case GDK_KEY_Delete:value=CUI_KEY_DELETE;break;
++    case GDK_KEY_Insert:value=CUI_KEY_INSERT;break;
++    default:
++        if(((cui_widget *)data)->kind==CUI_CODE && !(flags&(GDK_CONTROL_MASK|GDK_ALT_MASK)) && key>=32 && key<=126){value=(cui_key)key;break;}
++        key=gdk_keyval_to_upper(key);
++        if(!(flags&GDK_CONTROL_MASK)||key<'A'||key>'Z')return FALSE;
++        value=(cui_key)key;
+     }
+     if(flags&(GDK_SUPER_MASK|GDK_HYPER_MASK|GDK_META_MASK))return FALSE;
+     unsigned mods=0;
+@@ -34,7 +42,7 @@ int cui__backend_keys(cui_widget *w)
+     g_object_set_data(w->native,"cui-keys",keys);
+     GtkEditable *editable=GTK_IS_EDITABLE(w->native)?gtk_editable_get_delegate(GTK_EDITABLE(w->native)):NULL;
+     if(editable && GTK_IS_TEXT(editable))g_signal_connect(editable,"preedit-changed",G_CALLBACK(preedit),w);
+-    if(w->kind==CUI_TEXTAREA)g_signal_connect(w->aux,"preedit-changed",G_CALLBACK(preedit),w);
++    if(w->kind==CUI_TEXTAREA || w->kind==CUI_CODE)g_signal_connect(w->aux,"preedit-changed",G_CALLBACK(preedit),w);
+     return 1;
+ }
+ int cui__backend_hover(const cui_widget *w)
+diff --git a/src/cui_keys.c b/src/cui_keys.c
+index e96d12f..d147f6a 100644
+--- a/src/cui_keys.c
++++ b/src/cui_keys.c
+@@ -1,7 +1,7 @@
+ #include "cui_internal.h"
+ int cui_on_key(cui_widget *w,cui_key_callback callback,void *userdata)
+ {
+-    if(!w || (w->kind!=CUI_ENTRY && w->kind!=CUI_SEARCH && w->kind!=CUI_PASSWORD && w->kind!=CUI_TEXTAREA && w->kind!=CUI_CANVAS && w->kind!=CUI_LIST && w->kind!=CUI_TABLE))return 0;
++    if(!w || (w->kind!=CUI_ENTRY && w->kind!=CUI_SEARCH && w->kind!=CUI_PASSWORD && w->kind!=CUI_TEXTAREA && w->kind!=CUI_CODE && w->kind!=CUI_CANVAS && w->kind!=CUI_LIST && w->kind!=CUI_TABLE))return 0;
+     if(callback && !cui__backend_keys(w))return 0;
+     w->key_callback=callback;w->key_userdata=userdata;return 1;
+ }
+diff --git a/src/cui_macos.m b/src/cui_macos.m
+index 7d32c81..bf2837d 100644
+--- a/src/cui_macos.m
++++ b/src/cui_macos.m
+@@ -12,6 +12,16 @@
+ @interface CUIPlaceholderText : NSTextView { @public cui_widget *model; }
+ @end
+ @implementation CUIPlaceholderText
++- (void)keyDown:(NSEvent *)event {
++    if(model && model->kind==CUI_CODE && ![self hasMarkedText]){
++        NSString *text=[event characters];NSEventModifierFlags flags=[event modifierFlags];
++        if([text length]==1 && !(flags&(NSEventModifierFlagControl|NSEventModifierFlagOption|NSEventModifierFlagCommand))){
++            unichar key=[text characterAtIndex:0];unsigned mods=(flags&NSEventModifierFlagShift)?CUI_MOD_SHIFT:0;
++            if(key>=32 && key<=126 && cui__key(model,(cui_key)key,mods))return;
++        }
++    }
++    [super keyDown:event];
++}
+ - (void)drawRect:(NSRect)dirty {
+     [super drawRect:dirty];
+     if(model&&model->placeholder&&!*[[self string] UTF8String]&&![self hasMarkedText]){
+@@ -160,6 +170,10 @@ void cui__mac_canvas_detach(NSView *view);
+         case NSPageDownFunctionKey:key=CUI_KEY_PAGE_DOWN;break;
+         case NSHomeFunctionKey:key=CUI_KEY_HOME;break;
+         case NSEndFunctionKey:key=CUI_KEY_END;break;
++        case NSLeftArrowFunctionKey:key=CUI_KEY_LEFT;break;
++        case NSRightArrowFunctionKey:key=CUI_KEY_RIGHT;break;
++        case NSDeleteFunctionKey:key=CUI_KEY_DELETE;break;
++        case NSInsertFunctionKey:key=CUI_KEY_INSERT;break;
+         case NSUpArrowFunctionKey:key=CUI_KEY_UP;break;
+         case NSDownArrowFunctionKey:key=CUI_KEY_DOWN;break;
+         case 13:case 3:key=CUI_KEY_ENTER;break;
+@@ -172,6 +186,10 @@ void cui__mac_canvas_detach(NSView *view);
+         if(flags&NSEventModifierFlagOption)mods|=CUI_MOD_ALT;
+         if(flags&NSEventModifierFlagControl)mods|=CUI_MOD_CONTROL;
+         if(flags&NSEventModifierFlagCommand)mods|=CUI_MOD_PRIMARY;
++        if(!key && (mods&CUI_MOD_CONTROL)) {
++            unichar letter=[[keys uppercaseString] characterAtIndex:0];
++            if(letter>='A'&&letter<='Z')key=(cui_key)letter;
++        }
+         if(key && cui__key(widget,key,mods))return;
+     }
+     NSString *value=[e charactersIgnoringModifiers];if(widget->kind==CUI_CANVAS&&[value length]){unichar key=[value characterAtIndex:0];if((key=='c'||key=='C')&&([e modifierFlags]&NSEventModifierFlagCommand)&&cui__canvas_copy(widget))return;if(key==9||key==NSBackTabCharacter){cui__canvas_key(widget,([e modifierFlags]&NSEventModifierFlagShift)!=0,0);return;}if(key==13||key==32){cui__canvas_key(widget,0,1);return;}}[super keyDown:e]; }
+@@ -242,14 +260,22 @@ void cui__mac_canvas_detach(NSView *view);
+     else if(command==@selector(cancelOperation:)||command==@selector(complete:))key=CUI_KEY_ESCAPE;
+     else if(command==@selector(moveUp:))key=CUI_KEY_UP;
+     else if(command==@selector(moveDown:))key=CUI_KEY_DOWN;
++    else if(command==@selector(moveLeft:))key=CUI_KEY_LEFT;
++    else if(command==@selector(moveRight:))key=CUI_KEY_RIGHT;
++    else if(command==@selector(deleteForward:))key=CUI_KEY_DELETE;
+     else if(command==@selector(deleteBackward:))key=CUI_KEY_BACKSPACE;
+     else if(command==@selector(insertTab:)||command==@selector(insertBacktab:))key=CUI_KEY_TAB;
+     else if(command==@selector(moveToBeginningOfLine:))key=CUI_KEY_HOME;
+     else if(command==@selector(moveToEndOfLine:))key=CUI_KEY_END;
+     else if(command==@selector(pageUp:))key=CUI_KEY_PAGE_UP;
+     else if(command==@selector(pageDown:))key=CUI_KEY_PAGE_DOWN;
+-    if(!key)return NO;
+     NSEventModifierFlags flags=[[NSApp currentEvent] modifierFlags];unsigned mods=0;
++    NSString *characters=[[[NSApp currentEvent] charactersIgnoringModifiers] uppercaseString];
++    if((flags&NSEventModifierFlagControl)&&[characters length]){
++        unichar letter=[characters characterAtIndex:0];
++        if(letter>='A'&&letter<='Z')key=(cui_key)letter;
++    }
++    if(!key)return NO;
+     if(flags&NSEventModifierFlagShift)mods|=CUI_MOD_SHIFT;
+     if(flags&NSEventModifierFlagOption)mods|=CUI_MOD_ALT;
+     if(flags&NSEventModifierFlagControl)mods|=CUI_MOD_CONTROL;
+@@ -268,6 +294,10 @@ void cui__mac_canvas_detach(NSView *view);
+ {
+     NSString *text=[event charactersIgnoringModifiers];cui_key key=0;
+     if([text length])switch([text characterAtIndex:0]){
++        case NSLeftArrowFunctionKey:key=CUI_KEY_LEFT;break;
++        case NSRightArrowFunctionKey:key=CUI_KEY_RIGHT;break;
++        case NSDeleteFunctionKey:key=CUI_KEY_DELETE;break;
++        case NSInsertFunctionKey:key=CUI_KEY_INSERT;break;
+         case NSUpArrowFunctionKey:key=CUI_KEY_UP;break;case NSDownArrowFunctionKey:key=CUI_KEY_DOWN;break;
+         case NSHomeFunctionKey:key=CUI_KEY_HOME;break;case NSEndFunctionKey:key=CUI_KEY_END;break;
+         case NSPageUpFunctionKey:key=CUI_KEY_PAGE_UP;break;case NSPageDownFunctionKey:key=CUI_KEY_PAGE_DOWN;break;
+@@ -279,6 +309,10 @@ void cui__mac_canvas_detach(NSView *view);
+     if(flags&NSEventModifierFlagOption)mods|=CUI_MOD_ALT;
+     if(flags&NSEventModifierFlagControl)mods|=CUI_MOD_CONTROL;
+     if(flags&NSEventModifierFlagCommand)mods|=CUI_MOD_PRIMARY;
++    if(!key && (mods&CUI_MOD_CONTROL) && [text length]) {
++        unichar letter=[[text uppercaseString] characterAtIndex:0];
++        if(letter>='A'&&letter<='Z')key=(cui_key)letter;
++    }
+     if(!key||!cui__key(model,key,mods))[super keyDown:event];
+ }
+ @end
+@@ -725,10 +759,10 @@ static NSView *extended_control(cui_widget *w, const char *text)
+ static void connect_action(cui_widget *w, NSView *view)
+ {
+     if (w->kind == CUI_ICON || w->kind == CUI_CHART || (w->kind == CUI_IMAGE || w->kind == CUI_CANVAS) || w->kind == CUI_LABEL || w->kind == CUI_BADGE || w->kind == CUI_PROGRESS || w->kind == CUI_SPINNER ||
+-        w->kind == CUI_NUMBER || w->kind == CUI_SEPARATOR || w->kind == CUI_LIST || w->kind == CUI_TABLE || w->kind == CUI_TREE || w->kind == CUI_CODE) return;
++        w->kind == CUI_NUMBER || w->kind == CUI_SEPARATOR || w->kind == CUI_LIST || w->kind == CUI_TABLE || w->kind == CUI_TREE) return;
+     CUIAction *action = [[CUIAction alloc] init]; action->widget = w;
+     objc_setAssociatedObject(view, @selector(activate:), action, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+-    if (w->kind == CUI_TEXTAREA) [(NSTextView *)w->aux setDelegate:action];
++    if (w->kind == CUI_TEXTAREA || w->kind == CUI_CODE) [(NSTextView *)w->aux setDelegate:action];
+     else if (w->kind == CUI_ENTRY || w->kind == CUI_PASSWORD || w->kind == CUI_SEARCH) [(NSTextField *)view setDelegate:action];
+     else {
+         NSControl *control = w->kind == CUI_SWITCH ? (NSControl *)w->aux : (NSControl *)view;
+@@ -847,7 +881,7 @@ void cui__backend_set_enabled(cui_widget *widget, int enabled)
+         [view->field setEnabled:enabled]; [view->stepper setEnabled:enabled && !widget->read_only];
+     }
+     else if (widget->kind == CUI_SWITCH) [(NSControl *)widget->aux setEnabled:enabled];
+-    else if (widget->kind == CUI_TEXTAREA) [(NSTextView *)widget->aux setEditable:enabled && !widget->read_only];
++    else if (widget->kind == CUI_TEXTAREA || widget->kind == CUI_CODE) [(NSTextView *)widget->aux setEditable:enabled && !widget->read_only];
+     else if (widget->kind == CUI_LIST || widget->kind == CUI_TABLE || widget->kind == CUI_TREE) [(NSTableView *)widget->aux setEnabled:enabled];
+     else if ([(id)widget->native isKindOfClass:[NSControl class]]) [(NSControl *)widget->native setEnabled:enabled];
+ }
+diff --git a/src/cui_macos_desktop.m b/src/cui_macos_desktop.m
+index 2fdf9fc..13a0086 100644
+--- a/src/cui_macos_desktop.m
++++ b/src/cui_macos_desktop.m
+@@ -17,10 +17,10 @@ int cui_has_focus(const cui_widget *w)
+ void cui_accessibility(cui_widget *w,const char *label,const char *description)
+ {if(w){[input(w) setAccessibilityLabel:string(label)];[input(w) setAccessibilityHelp:string(description)];}}
+ void cui_set_read_only(cui_widget *w,int value)
+-{if(!w || !(w->kind==CUI_ENTRY || w->kind==CUI_PASSWORD || w->kind==CUI_SEARCH || w->kind==CUI_TEXTAREA))return;w->read_only=!!value;int editable=!value;for(cui_widget *p=w;p;p=p->parent)editable=editable&&p->enabled;if(w->kind==CUI_TEXTAREA)[(NSTextView *)w->aux setEditable:editable];else if(w->kind==CUI_ENTRY||w->kind==CUI_PASSWORD||w->kind==CUI_SEARCH)[(NSTextField *)w->native setEditable:editable];}
++{if(!w || !(w->kind==CUI_ENTRY || w->kind==CUI_PASSWORD || w->kind==CUI_SEARCH || w->kind==CUI_TEXTAREA||w->kind==CUI_CODE))return;w->read_only=!!value;int editable=!value;for(cui_widget *p=w;p;p=p->parent)editable=editable&&p->enabled;if(w->kind==CUI_TEXTAREA||w->kind==CUI_CODE)[(NSTextView *)w->aux setEditable:editable];else if(w->kind==CUI_ENTRY||w->kind==CUI_PASSWORD||w->kind==CUI_SEARCH)[(NSTextField *)w->native setEditable:editable];}
+ static NSUndoManager *undo_manager(cui_widget *w)
+ {
+-    if(w->kind==CUI_TEXTAREA)return [(NSTextView *)w->aux undoManager];
++    if(w->kind==CUI_TEXTAREA||w->kind==CUI_CODE)return [(NSTextView *)w->aux undoManager];
+     if(w->kind==CUI_ENTRY||w->kind==CUI_PASSWORD||w->kind==CUI_SEARCH)return [[(NSTextField *)w->native currentEditor] undoManager];
+     return nil;
+ }
+diff --git a/src/cui_win32_desktop.c b/src/cui_win32_desktop.c
+index fa85890..f94cba8 100644
+--- a/src/cui_win32_desktop.c
++++ b/src/cui_win32_desktop.c
+@@ -23,7 +23,7 @@ void cui_accessibility(cui_widget *w,const char *label,const char *description)
+     if(SUCCEEDED(hr)){wchar_t *text=wide(label?label:"");if(text){IAccPropServices_SetHwndPropStr(services,(HWND)w->native,OBJID_CLIENT,CHILDID_SELF,PROPID_ACC_NAME,text);free(text);}text=wide(description?description:"");if(text){IAccPropServices_SetHwndPropStr(services,(HWND)w->native,OBJID_CLIENT,CHILDID_SELF,PROPID_ACC_DESCRIPTION,text);free(text);}IAccPropServices_Release(services);}
+ }
+ void cui_set_read_only(cui_widget *w,int value)
+-{if(w&&(w->kind==CUI_ENTRY||w->kind==CUI_PASSWORD||w->kind==CUI_SEARCH||w->kind==CUI_TEXTAREA)){w->read_only=!!value;SendMessageW((HWND)w->native,EM_SETREADONLY,value,0);}}
++{if(w&&(w->kind==CUI_ENTRY||w->kind==CUI_PASSWORD||w->kind==CUI_SEARCH||w->kind==CUI_TEXTAREA||w->kind==CUI_CODE)){w->read_only=!!value;SendMessageW((HWND)w->native,EM_SETREADONLY,value,0);}}
+ void cui_undo(cui_widget *w){if(w)SendMessageW((HWND)w->native,EM_UNDO,0,0);}
+ void cui_redo(cui_widget *w){if(w)SendMessageW((HWND)w->native,w->kind==CUI_TEXTAREA?EM_REDO:EM_UNDO,0,0);}
+ static HRESULT CALLBACK alert_event(HWND hwnd,UINT event,WPARAM wp,LPARAM lp,LONG_PTR data)
+diff --git a/src/cui_win32_keys.c b/src/cui_win32_keys.c
+index e0ee040..36f9225 100644
+--- a/src/cui_win32_keys.c
++++ b/src/cui_win32_keys.c
+@@ -10,6 +10,8 @@ static cui_key key_value(WPARAM key)
+     case VK_UP:return CUI_KEY_UP;case VK_DOWN:return CUI_KEY_DOWN;
+     case VK_HOME:return CUI_KEY_HOME;case VK_END:return CUI_KEY_END;
+     case VK_PRIOR:return CUI_KEY_PAGE_UP;case VK_NEXT:return CUI_KEY_PAGE_DOWN;
++    case VK_LEFT:return CUI_KEY_LEFT;case VK_RIGHT:return CUI_KEY_RIGHT;
++    case VK_DELETE:return CUI_KEY_DELETE;case VK_INSERT:return CUI_KEY_INSERT;
+     default:return 0;
+     }
+ }
+@@ -37,6 +39,11 @@ int cui__win32_key_message(MSG *message)
+     if(GetKeyState(VK_SHIFT)<0)mods|=CUI_MOD_SHIFT;
+     if(GetKeyState(VK_CONTROL)<0)mods|=CUI_MOD_CONTROL|CUI_MOD_PRIMARY;
+     if(GetKeyState(VK_MENU)<0)mods|=CUI_MOD_ALT;
++    if(!key&&(mods&CUI_MOD_CONTROL)&&message->wParam>='A'&&message->wParam<='Z')key=(cui_key)message->wParam;
++    if(!key && ((cui_widget *)data)->kind==CUI_CODE && !(mods&(CUI_MOD_CONTROL|CUI_MOD_ALT))){
++        BYTE state[256];WCHAR text[4];
++        if(GetKeyboardState(state) && ToUnicode((UINT)message->wParam,(UINT)((message->lParam>>16)&255),state,text,4,4)==1 && text[0]>=32 && text[0]<=126)key=(cui_key)text[0];
++    }
+     return key&&cui__key((cui_widget *)data,key,mods);
+ }
+ int cui__backend_keys(cui_widget *w)
+diff --git a/src/cui_winui_input.cpp b/src/cui_winui_input.cpp
+index f210e08..835403c 100644
+--- a/src/cui_winui_input.cpp
++++ b/src/cui_winui_input.cpp
+@@ -24,6 +24,10 @@ cui_key key_value(winrt::Windows::System::VirtualKey key) {
+         return CUI_KEY_PAGE_UP;
+     case K::PageDown:
+         return CUI_KEY_PAGE_DOWN;
++    case K::Left: return CUI_KEY_LEFT;
++    case K::Right: return CUI_KEY_RIGHT;
++    case K::Delete: return CUI_KEY_DELETE;
++    case K::Insert: return CUI_KEY_INSERT;
+     default:
+         return static_cast<cui_key>(0);
+     }
+@@ -34,6 +38,12 @@ void cui::winui::connect_input(cui_widget *w) {
+     e.PreviewKeyDown([w](auto const &, xaml::Input::KeyRoutedEventArgs const &event) {
+         protect(w->window->app, [&] {
+             auto key = key_value(event.Key());
++            auto letter = static_cast<unsigned>(event.Key());
++            if (!key && (modifiers() & CUI_MOD_CONTROL) && letter >= 'A' && letter <= 'Z') key = static_cast<cui_key>(letter);
++            if (!key && w->kind==CUI_CODE && !(modifiers()&(CUI_MOD_CONTROL|CUI_MOD_ALT))) {
++                BYTE state[256];WCHAR text[4];
++                if(GetKeyboardState(state) && ToUnicode(letter,MapVirtualKeyW(letter,MAPVK_VK_TO_VSC),state,text,4,4)==1 && text[0]>=32 && text[0]<=126)key=static_cast<cui_key>(text[0]);
++            }
+             if (key && cui__key(w, key, modifiers()))
+                 event.Handled(true);
+         });
+diff --git a/tests/chat_input.c b/tests/chat_input.c
+index c16100e..be5f3e2 100644
+--- a/tests/chat_input.c
++++ b/tests/chat_input.c
+@@ -7,9 +7,11 @@
+ #include <stdio.h>
+ #include <string.h>
+ static int sends,cancels;
++static cui_key last_key;static unsigned last_mods;
+ static int keys(cui_widget *w,cui_key key,unsigned mods,void *data)
+ {
+     (void)w;(void)data;
++    last_key=key;last_mods=mods;
+     if(key==CUI_KEY_ENTER && !(mods&CUI_MOD_SHIFT)){++sends;return 1;}
+     if(key==CUI_KEY_ESCAPE){++cancels;return 1;}
+     return 0;
+@@ -21,7 +23,7 @@ static int press(cui_widget *w,guint key,GdkModifierType mods)
+     g_signal_emit_by_name(controller,"key-pressed",key,0,mods,&handled);
+     return handled;
+ }
+-static cui_app *app;static cui_widget *input,*canvas;
++static cui_app *app;static cui_widget *input,*canvas,*code;
+ static void verify(void *data)
+ {
+     (void)data;
+@@ -40,6 +42,24 @@ static void verify(void *data)
+     assert(press(input,GDK_KEY_Escape,0)&&cancels==1);
+     cui_set_enabled(input,0);assert(!press(input,GDK_KEY_Return,0));cui_set_enabled(input,1);
+     cui_set_visible(input,0);assert(!press(input,GDK_KEY_Return,0));cui_set_visible(input,1);
++    assert(!press(input,GDK_KEY_Left,0)&&last_key==CUI_KEY_LEFT);
++    assert(!press(input,GDK_KEY_Right,0)&&last_key==CUI_KEY_RIGHT);
++    assert(!press(input,GDK_KEY_Delete,0)&&last_key==CUI_KEY_DELETE);
++    assert(!press(input,GDK_KEY_Insert,0)&&last_key==CUI_KEY_INSERT);
++    assert(!press(input,GDK_KEY_c,GDK_CONTROL_MASK)&&last_key=='C'&&(last_mods&CUI_MOD_CONTROL));
++    assert(!press(canvas,GDK_KEY_Left,0)&&last_key==CUI_KEY_LEFT);
++    assert(!press(canvas,GDK_KEY_z,GDK_CONTROL_MASK)&&last_key=='Z');
++    assert(!press(code,GDK_KEY_g,0)&&last_key=='g');
++    assert(!press(code,GDK_KEY_G,GDK_SHIFT_MASK)&&last_key=='G');
++    assert(!press(code,GDK_KEY_dollar,GDK_SHIFT_MASK)&&last_key=='$');
++    assert(!gtk_text_view_get_editable(GTK_TEXT_VIEW(code->aux)));
++    assert(!cui_insert_text(code,"blocked"));
++    cui_set_read_only(code,0);
++    assert(gtk_text_view_get_editable(GTK_TEXT_VIEW(code->aux)));
++    assert(cui_insert_text(code,"editable"));
++    cui_set_read_only(code,1);
++    assert(!gtk_text_view_get_editable(GTK_TEXT_VIEW(code->aux)));
++    assert(!cui_insert_text(code,"blocked"));
+     assert(cui_on_key(input,NULL,NULL));assert(!press(input,GDK_KEY_Return,0));
+     GtkTextBuffer *buffer=gtk_text_view_get_buffer(GTK_TEXT_VIEW(input->aux));
+     cui_set_text(input,"a🌍bc");
+@@ -68,6 +88,7 @@ int main(void)
+     input=cui_textarea(cui_window_root(w),"");assert(input);
+     assert(cui_textarea_set_height(input,48));assert(!cui_textarea_set_height(input,0));
+     assert(cui_on_key(input,keys,NULL));
++    code=cui_code(cui_window_root(w),"");assert(code&&cui_on_key(code,keys,NULL));
+     canvas=cui_canvas(cui_window_root(w));assert(canvas);
+     assert(!cui_textarea_set_height(canvas,48));assert(cui_on_key(canvas,keys,NULL));
+     cui_every(app,200,verify,NULL);cui_window_show(w);cui_app_run(app);cui_app_destroy(app);
+diff --git a/tests/windows_diagnostics.h b/tests/windows_diagnostics.h
+index caad36c..beb90f5 100644
+--- a/tests/windows_diagnostics.h
++++ b/tests/windows_diagnostics.h
+@@ -10,7 +10,13 @@ static LONG WINAPI cui_test_exception(EXCEPTION_POINTERS *exception) {
+         return EXCEPTION_CONTINUE_SEARCH;
+     static int reporting;
+     if(reporting++)return EXCEPTION_CONTINUE_SEARCH;
+-    fprintf(stderr,"Windows access violation at %p\n",exception->ExceptionRecord->ExceptionAddress);
++    fprintf(stderr,"Observed Windows access violation at %p\n",exception->ExceptionRecord->ExceptionAddress);
++    /* Vectored handlers also see exceptions that a library later handles. */
++    MEMORY_BASIC_INFORMATION region;
++    char module[MAX_PATH];
++    if (VirtualQuery(exception->ExceptionRecord->ExceptionAddress, &region, sizeof(region)) &&
++        GetModuleFileNameA((HMODULE)region.AllocationBase, module, sizeof(module)))
++        fprintf(stderr,"Fault module: %s\n",module);
+ #if defined(_M_X64)
+     HANDLE process=GetCurrentProcess();
+     CONTEXT context=*exception->ContextRecord;
+@@ -21,7 +27,7 @@ static LONG WINAPI cui_test_exception(EXCEPTION_POINTERS *exception) {
+     frame.AddrPC.Mode=frame.AddrStack.Mode=frame.AddrFrame.Mode=AddrModeFlat;
+     SymSetOptions(SYMOPT_LOAD_LINES|SYMOPT_UNDNAME);
+     SymInitialize(process,NULL,TRUE);
+-    fprintf(stderr,"Unhandled Windows exception 0x%08lx at %p\n",
++    fprintf(stderr,"Observed Windows exception 0x%08lx at %p\n",
+         exception->ExceptionRecord->ExceptionCode,exception->ExceptionRecord->ExceptionAddress);
+     for(unsigned i=0;i<40 && frame.AddrPC.Offset;++i){
+         char storage[sizeof(SYMBOL_INFO)+MAX_SYM_NAME];
+diff --git a/tests/winui_memory.c b/tests/winui_memory.c
+new file mode 100644
+index 0000000..9743d8b
+--- /dev/null
++++ b/tests/winui_memory.c
+@@ -0,0 +1,73 @@
++/* Native Windows repaint workload; samples are diagnostics, not a leak verdict. */
++#include "cui.h"
++#include "cui_draw.h"
++#include <assert.h>
++#include <stdio.h>
++#include <windows.h>
++#include <psapi.h>
++#include "windows_diagnostics.h"
++
++static cui_app *app;
++static cui_widget *canvas;
++static cui_surface *surface;
++static unsigned step;
++
++static void sample(void) {
++    PROCESS_MEMORY_COUNTERS_EX counters = {0};
++    DWORD handles = 0;
++    counters.cb = sizeof(counters);
++    assert(GetProcessMemoryInfo(GetCurrentProcess(),
++                               (PROCESS_MEMORY_COUNTERS *)&counters, sizeof(counters)));
++    assert(GetProcessHandleCount(GetCurrentProcess(), &handles));
++    printf("step=%u working_set_kib=%zu private_commit_kib=%zu handles=%lu gdi=%lu user=%lu\n",
++           step, counters.WorkingSetSize / 1024, counters.PrivateUsage / 1024, handles,
++           GetGuiResources(GetCurrentProcess(), GR_GDIOBJECTS),
++           GetGuiResources(GetCurrentProcess(), GR_USEROBJECTS));
++    fflush(stdout);
++}
++
++static void tick(void *data) {
++    cui_window *window = data;
++    ++step;
++    if (step <= 1000) {
++        /* Exercise same-size updates, a larger backing buffer, then shrink it. */
++        if (step == 500 || step == 750) {
++            cui_surface_release(surface);
++            surface = cui_surface_create(960, 540, step == 500 ? 2 : 1);
++            assert(surface);
++        }
++        cui_draw_command draw = {0};
++        draw.op = CUI_DRAW_CLEAR;
++        draw.color = (step & 1) ? 0x123456ff : 0xabcdef80;
++        assert(cui_surface_render(surface, &draw, 1));
++        assert(cui_canvas_set_surface(canvas, surface));
++        assert(cui_set_opacity(canvas, step % 10 ? 1 : .5));
++    }
++    assert(!*cui_app_error(app));
++    if (step % 100 == 0)
++        sample();
++    /* Let queued presentation work settle for another second. */
++    if (step == 1100)
++        cui_window_close(window);
++}
++
++int main(void) {
++    cui_test_windows_diagnostics();
++    app = cui_app_create();
++    assert(app);
++    cui_window *window = cui_window_create(app, "CUI Windows repaint memory", 960, 540);
++    assert(window);
++    canvas = cui_canvas(cui_window_root(window));
++    surface = cui_surface_create(960, 540, 1);
++    assert(canvas && surface);
++    cui_expand(canvas, 1);
++    assert(cui_every(app, 10, tick, window));
++    cui_window_show(window);
++    sample();
++    cui_app_run(app);
++    assert(step == 1100);
++    cui_surface_release(surface);
++    cui_app_destroy(app);
++    puts("Windows repeated canvas updates, resize, opacity and teardown completed");
++    return 0;
++}

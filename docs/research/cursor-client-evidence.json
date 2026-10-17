@@ -1,0 +1,329 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-16",
+  "mode": "static; no target code execution or authenticated backend requests",
+  "target": {
+    "version": "3.23.23",
+    "commit": "2dac2428994fe34f12658d9ecad1541b98db2c00",
+    "build_date": "2026-10-05T01:43:43.807Z"
+  },
+  "rea": {
+    "version": "6.5.0",
+    "executable": "/home/mathias/.local/bin/rea",
+    "evidence": [
+      {
+        "artifact": ".research/cursor-3.23.23/rea-deeplink-unrestricted.json",
+        "evidence_id": "ev_45e5a5da473e343f497a27a5df8225310b267ad68493556bc0f69f2a5437d734",
+        "operation": "analyze_javascript_application",
+        "statistics": {
+          "relevant_files": 6,
+          "nested_asar_containers": 0,
+          "text_bytes_read": 819407,
+          "invalid_utf8_files": 0,
+          "parsed_javascript_files": 1,
+          "visited_ast_nodes": 198391,
+          "findings": 678,
+          "modules": 202,
+          "parse_failures": 0
+        },
+        "trace_summary": null,
+        "limitations": [
+          "Caller-selected source analysis leaves 5 inventoried files outside analysis scope. Inventory identity covers the complete artifact; relationships through unselected sources remain unknown.",
+          "CommonJS and ESM binding relationships were recovered from inert syntax and resolved only within the inventoried artifact container.",
+          "Graph coverage is incomplete; unavailable facts remain explicit and must not be read as absence.",
+          "JavaScript and HTML were parsed as inert text; bundle bootstrap code was never executed.",
+          "Static imports, entrypoints, workers, endpoints, and storage relationships do not prove runtime execution.",
+          "Static paths and relationships may remain unresolved when expressions are dynamic or obfuscated.",
+          "Webpack/Rspack factories were recovered from AST literals; REA did not invoke push handlers or bundle bootstrap code.",
+          "extensions/cursor-deeplink/dist/main.js: Resource constraint during analyze_javascript_application: Maximum call stack size exceeded"
+        ]
+      },
+      {
+        "artifact": ".research/cursor-3.23.23/rea-agent-host.json",
+        "evidence_id": "ev_33835f8136b89687b28bd2992174ae8ac896e15719e051d5600c11b2a97f2256",
+        "operation": "analyze_javascript_application",
+        "statistics": {
+          "relevant_files": 6,
+          "nested_asar_containers": 0,
+          "text_bytes_read": 11045940,
+          "invalid_utf8_files": 0,
+          "parsed_javascript_files": 1,
+          "visited_ast_nodes": 2424062,
+          "findings": 4247,
+          "modules": 1108,
+          "parse_failures": 0
+        },
+        "trace_summary": null,
+        "limitations": [
+          "Caller-selected source analysis leaves 5 inventoried files outside analysis scope. Inventory identity covers the complete artifact; relationships through unselected sources remain unknown.",
+          "CommonJS and ESM binding relationships were recovered from inert syntax and resolved only within the inventoried artifact container.",
+          "Graph coverage is incomplete; unavailable facts remain explicit and must not be read as absence.",
+          "JavaScript and HTML were parsed as inert text; bundle bootstrap code was never executed.",
+          "Static imports, entrypoints, workers, endpoints, and storage relationships do not prove runtime execution.",
+          "Static paths and relationships may remain unresolved when expressions are dynamic or obfuscated.",
+          "Webpack/Rspack factories were recovered from AST literals; REA did not invoke push handlers or bundle bootstrap code.",
+          "extensions/cursor-agent-host/dist/main.js: Resource constraint during analyze_javascript_application: Maximum call stack size exceeded"
+        ]
+      },
+      {
+        "artifact": ".research/cursor-3.23.23/rea-agentservice-trace.json",
+        "evidence_id": "ev_9a03abfa0992b6f9311c59351122d1d5f8deffb4b9329135e6afc9c668198fe4",
+        "operation": "trace_application_feature",
+        "statistics": null,
+        "trace_summary": {
+          "matched_seeds": 1,
+          "traced_nodes": 158,
+          "traced_edges": 535,
+          "terminal_paths": 0,
+          "native_handoffs": 0,
+          "observed_facts": 158,
+          "inferred_facts": 535,
+          "unknown_facts": 0,
+          "unavailable_facts": 0
+        },
+        "limitations": [
+          "A trace reports graph relationships, not proof that code executed or that a feature is reachable in every state.",
+          "Native handoffs never open a binary or invoke a provider automatically; snapshot reuse remains provider/profile/target exact.",
+          "Static, native, passive-runtime, inferred, and unknown facts retain their original authority in the returned graph.",
+          "The source application graph is incomplete; unmatched seeds and frontiers remain unknown."
+        ]
+      }
+    ]
+  },
+  "files": {
+    "launcher": {
+      "path": "/usr/bin/cursor",
+      "resolved_path": "/usr/share/cursor/cursor",
+      "bytes": 1150,
+      "sha256": "05d321974f25e3be27e32c0bab2b99eb65c1020fc04885e750a87b667aec1bfa"
+    },
+    "package": {
+      "path": "/usr/share/cursor/resources/app/package.json",
+      "resolved_path": "/usr/share/cursor/resources/app/package.json",
+      "bytes": 621,
+      "sha256": "fbfbde92d8f8a102e6c8e9ec9a4d6f5d528aa03217ce677896d54a8a9e1010d0"
+    },
+    "product": {
+      "path": "/usr/share/cursor/resources/app/product.json",
+      "resolved_path": "/usr/share/cursor/resources/app/product.json",
+      "bytes": 52411,
+      "sha256": "868bff5798e79e3c21a3e423cce2270a8f2cc4bf57e69f1bcbb3097426be1154"
+    },
+    "desktop": {
+      "path": "/usr/share/cursor/resources/app/out/vs/workbench/workbench.desktop.main.js",
+      "resolved_path": "/usr/share/cursor/resources/app/out/vs/workbench/workbench.desktop.main.js",
+      "bytes": 39262113,
+      "sha256": "444498c2672d6172416654b60d267bff8457277441de0049b7a2147468528ad8"
+    },
+    "deeplink": {
+      "path": "/usr/share/cursor/resources/app/extensions/cursor-deeplink/dist/main.js",
+      "resolved_path": "/usr/share/cursor/resources/app/extensions/cursor-deeplink/dist/main.js",
+      "bytes": 819407,
+      "sha256": "57133419500b0569122f034515c39386722c6e421addcb14ab2041ed310fd83d"
+    },
+    "agent_host": {
+      "path": "/usr/share/cursor/resources/app/extensions/cursor-agent-host/dist/main.js",
+      "resolved_path": "/usr/share/cursor/resources/app/extensions/cursor-agent-host/dist/main.js",
+      "bytes": 11045940,
+      "sha256": "2ff7958e5dfc69da4b5e40320c05bf9d58fe10bc09b6d85ff0b22d0b27bdeb4f"
+    },
+    "daemon": {
+      "path": "/usr/share/cursor/resources/app/extensions/cursor-agent-host/dist/agent-host-daemon/dist/bin/daemon.cjs",
+      "resolved_path": "/usr/share/cursor/resources/app/extensions/cursor-agent-host/dist/agent-host-daemon/dist/bin/daemon.cjs",
+      "bytes": 26834585,
+      "sha256": "6153507a350c3ce2c50b31a7f1ae6647c6233281d10892879e1ed34e0c2bc5f0"
+    }
+  },
+  "offset_convention": "Zero-based UTF-8 byte offsets; first exact occurrence unless specified. Anchors locate evidence, not proof of runtime execution.",
+  "anchors": [
+    {
+      "id": "auth.login_url",
+      "file": "desktop",
+      "byte_offset": 16717045,
+      "anchor": "getLoginUrl(){",
+      "occurrences": 1
+    },
+    {
+      "id": "auth.poll",
+      "file": "desktop",
+      "byte_offset": 36582053,
+      "anchor": "async fetchPendingBrowserLoginSession",
+      "occurrences": 1
+    },
+    {
+      "id": "auth.callback",
+      "file": "desktop",
+      "byte_offset": 36562038,
+      "anchor": "async handleAuth(",
+      "occurrences": 1
+    },
+    {
+      "id": "auth.refresh",
+      "file": "desktop",
+      "byte_offset": 36567866,
+      "anchor": "async _performAccessTokenRefresh(",
+      "occurrences": 1
+    },
+    {
+      "id": "auth.refresh_storage",
+      "file": "desktop",
+      "byte_offset": 36569194,
+      "anchor": "this.storeAccessRefreshToken(c.access_token,c.access_token)",
+      "occurrences": 1
+    },
+    {
+      "id": "agent.run_request",
+      "file": "desktop",
+      "byte_offset": 14062134,
+      "anchor": "makeMessageType(\"agent.v1.AgentRunRequest\"",
+      "occurrences": 1
+    },
+    {
+      "id": "api.agent_service",
+      "file": "desktop",
+      "byte_offset": 18584163,
+      "anchor": "typeName:\"agent.v1.AgentService\"",
+      "occurrences": 1
+    },
+    {
+      "id": "api.inference_service",
+      "file": "desktop",
+      "byte_offset": 24218721,
+      "anchor": "typeName:\"aiserver.v1.InferenceService\"",
+      "occurrences": 1
+    },
+    {
+      "id": "api.default_backend",
+      "file": "desktop",
+      "byte_offset": 2841215,
+      "anchor": "https://api2.cursor.sh",
+      "occurrences": 2
+    },
+    {
+      "id": "auth.generate",
+      "file": "daemon",
+      "byte_offset": 13662490,
+      "anchor": "function generateAuthParams(",
+      "occurrences": 1
+    },
+    {
+      "id": "auth.poll_cli",
+      "file": "daemon",
+      "byte_offset": 13665853,
+      "anchor": "async function pollAuthenticationStatus(",
+      "occurrences": 1
+    },
+    {
+      "id": "auth.exchange_key",
+      "file": "daemon",
+      "byte_offset": 13663605,
+      "anchor": "async function exchangeApiKeyForTokens(",
+      "occurrences": 1
+    },
+    {
+      "id": "auth.reuse",
+      "file": "daemon",
+      "byte_offset": 13671025,
+      "anchor": "async function resolveAccessTokenWithRefreshPolicy(",
+      "occurrences": 1
+    },
+    {
+      "id": "auth.expiry",
+      "file": "daemon",
+      "byte_offset": 13672283,
+      "anchor": "function isTokenExpiringSoon(",
+      "occurrences": 1
+    },
+    {
+      "id": "auth.refresh_key",
+      "file": "daemon",
+      "byte_offset": 13672569,
+      "anchor": "async function refreshTokenWithApiKey(",
+      "occurrences": 1
+    },
+    {
+      "id": "transport.factory",
+      "file": "daemon",
+      "byte_offset": 12708718,
+      "anchor": "var BidiTransportFactory = class",
+      "occurrences": 1
+    },
+    {
+      "id": "transport.append",
+      "file": "daemon",
+      "byte_offset": 12691745,
+      "anchor": "var BidiBaseTransport = class",
+      "occurrences": 1
+    },
+    {
+      "id": "transport.sse",
+      "file": "daemon",
+      "byte_offset": 12703699,
+      "anchor": "var BidiSSETransport = class",
+      "occurrences": 1
+    },
+    {
+      "id": "transport.poll",
+      "file": "daemon",
+      "byte_offset": 12704159,
+      "anchor": "var BidiPollTransport = class",
+      "occurrences": 1
+    },
+    {
+      "id": "schema.agent_service",
+      "file": "daemon",
+      "byte_offset": 9169290,
+      "anchor": "typeName: \"agent.v1.AgentService\"",
+      "occurrences": 1
+    },
+    {
+      "id": "schema.bidi_service",
+      "file": "daemon",
+      "byte_offset": 12680017,
+      "anchor": "typeName: \"aiserver.v1.BidiService\"",
+      "occurrences": 1
+    },
+    {
+      "id": "schema.agent_client",
+      "file": "daemon",
+      "byte_offset": 4230217,
+      "anchor": "\"AgentClientMessage|",
+      "occurrences": 1
+    },
+    {
+      "id": "schema.agent_server",
+      "file": "daemon",
+      "byte_offset": 4232385,
+      "anchor": "\"AgentServerMessage|",
+      "occurrences": 1
+    },
+    {
+      "id": "schema.exec_client",
+      "file": "daemon",
+      "byte_offset": 3898389,
+      "anchor": "\"ExecClientMessage|",
+      "occurrences": 1
+    },
+    {
+      "id": "schema.exec_server",
+      "file": "daemon",
+      "byte_offset": 3895363,
+      "anchor": "\"ExecServerMessage|",
+      "occurrences": 1
+    },
+    {
+      "id": "schema.bidi_append",
+      "file": "daemon",
+      "byte_offset": 9166445,
+      "anchor": "\"BidiAppendRequest|",
+      "occurrences": 1
+    },
+    {
+      "id": "schema.bidi_poll",
+      "file": "daemon",
+      "byte_offset": 9168799,
+      "anchor": "\"BidiPollResponse|",
+      "occurrences": 1
+    }
+  ]
+}

@@ -1,0 +1,250 @@
+# Current implementation evidence — 15 October 2026
+
+## Native CUI desktop increment — 17 October 2026
+
+The separate `desktop/` Go module builds `bin/bifrost-desktop`, a native Go+CUI
+frontend covering the implemented TUI workflows. Both frontends share runtime,
+accounts, settings, project/catalog/task callbacks and rooted filesystem services.
+This increment adds all TUI command handlers/aliases, durable editor drafts,
+shared Vim/search/undo, viewer highlights/walkthroughs, conversation tabs,
+mentions, colored multi-PTY terminals and command-output tabs, persisted layouts,
+interactive Markdown links/tables, and project/GitHub/Notion detail views.
+The original executable still builds with `CGO_ENABLED=0`; its module has no CUI
+imports or GTK dependency. Viewer tools are now available in both frontends.
+
+The design retains a bounded reading width, charcoal/violet hierarchy, cyan
+focus, optional resizable context, a growing composer and adaptive compact
+layouts. Sources, launch instructions, screenshots and a workflow coverage table
+are in [desktop.md](desktop.md).
+
+The screenshot-driven workspace redesign adds persistent Project/Tasks/Skills/
+MCP/Accounts/Settings navigation, a bounded sidebar and workspace reading width,
+a compact editor toolbar with overflow actions, task search/status filters and
+separate results/execution details. Project now opens a multi-repository overview;
+common runtime/tool settings have native form fields alongside advanced JSON.
+Both catalogs expose source previews and installation scope directly.
+The chat follow-up's desktop race tests, native interaction suite (including
+800×720 and 150% text), both vet checks, shared CLI/UI race tests, native rebuild
+and CGO-disabled TUI build pass. The structural gate still reports 87 historical
+major findings; this remains separate from functional verification.
+The chat follow-up marks user prompts as outgoing and labels their violet
+bubbles, groups adjacent execution events behind one native disclosure, and
+removes the duplicate activity log panel. Group actions retain complete source
+text and event identity; the shared session/TUI model is unchanged. Centering
+uses an overlay so fixed gutters no longer prevent narrow-window resizing. The design
+rationale and primary references are recorded in [desktop.md](desktop.md#design-choices-and-research).
+
+The 17 October full GUI review additionally fixes streaming/status interleaving,
+shared account labels across tabs, per-run command-output identity (including
+background chats), stale mention suggestions, failed recovery-write retries,
+reload failure retention and selection, and editor search at the current cursor.
+Settings now use compact scalar inputs and boolean toggles; Save validates all
+edited values and retains them across field changes. Unsent chat drafts and
+repository-form edits participate in close protection. Superseded catalog
+requests are cancelled.
+
+The final native race fixture passed in 47.18 seconds (48.318 seconds including
+race teardown). The full root race suite, focused shared CLI/UI tests, both vet
+checks and desktop race tests passed; both binaries were rebuilt. Initial review
+runs exposed a malformed new command-output fixture and a real pending-settings
+loss on field selection; both were corrected and the complete suite rerun.
+The structural check remains non-clean: 87 historical gating majors, 4 minor
+findings and 1304 non-gating new-symbol findings against the existing sidecar.
+No live vendor login, paid inference or real user workspace was used.
+
+The README contains a native screenshot tour and a generated Bifrost logo.
+`patches/cui-desktop.patch` preserves the adjacent toolkit edits required by this
+snapshot, with its base revision and fresh-checkout instructions. This makes the
+native dependency reproducible without changing the TUI's dependency graph.
+
+Verification for this increment:
+
+- The parent full `go test -race -count=1 -timeout=90s ./...` passed. The shared
+  CLI/UI packages were race-tested again after the final adapter changes.
+  Parent and desktop `go vet ./...` pass; desktop unit/race tests pass.
+- The native race fixture uses actual GTK/CUI controls under Xvfb, a local
+  streaming server, temporary config/state/files and disposable Git repositories.
+  It covers send/stop, session creation/resume, stale reads, command completion/
+  help/invalid-input retention, palette focus, file save/conflicts, settings
+  save/conflicts/themes, account switching, catalog preview/install scope,
+  task cancellation and multi-repository linking/defaults.
+- Expanded cases cover real XTest Vim input, per-file undo/search, disk draft
+  recovery, viewer walkthrough/highlight/focus, background chat stream isolation,
+  independent PTYs, real Left/Delete/Return/Ctrl+C shell input, mention expansion,
+  project connector detail views, persisted presets/proportions, composer row
+  bounds and command-output tab eviction. The command coverage test checks every
+  canonical command and alias against the shared TUI registry. Physical Tab/Shift+Tab
+  events exercise the same completion cycle, including reverse cycling; adapter
+  tests cover catalog IDs and scope completion. Agent-opened files can enter the
+  rooted editor directly.
+- The redesign suite adds real Ctrl+F/Escape focus checks, separate Skills/MCP
+  navigation, MCP preview/install ID and scope, category switching during an
+  active install, task search/status/details, refresh-safe repository drafts and
+  common/advanced form validation. It passes with the race detector. The parent
+  race suite, both vet checks, desktop race unit tests, native build and
+  CGO-disabled TUI build also pass after the redesign.
+- Captures are from the running native app at 2560×1440, 1440×920, 800×720, 640×600,
+  640×480 for the palette, and 1200×900 with 150% text. Compact dimensions are
+  asserted after asynchronous GTK font/layout reflow. Xvfb uses software
+  rendering and logs Mesa DRI3 warnings; GTK emits transient sizing/focus warnings.
+- CUI's Code widget now actually honors editable/read-only state, including
+  printable normal-mode keys. GTK tests assert the editable property and real
+  input behavior. Navigation/control forwarding and text ranges have regression
+  coverage. Binding coverage and all 631 C/Rust ABI checks pass. macOS/Windows
+  mapping changes are source-only evidence.
+- Both binaries are rebuilt. `make desktop` rebuilds the adjacent CUI archive
+  and forces relinking the native executable; the TUI build stays CGO-disabled.
+- The structural quality gate is still non-clean against its historical sidecar:
+  87 preexisting-worse major findings, plus non-gating new-symbol findings
+  including complexity/length findings in desktop presentation builders. The
+  redesign does not make this historical gate clean.
+  Functional success must not be described as a clean structural gate.
+
+No paid inference, real OAuth account, user repository mutation or real VM was
+used for these checks. Linux native fixture coverage does not establish other OS
+runtimes, real vendor/SSH GUI behavior, accessibility or IME qualification. Shared
+TUI roadmap gaps (approval/MCP OAuth forms, public skill federation, LSP overlays,
+hunk staging and terminal pixel images) remain outside the implemented baseline.
+
+This continuation adds onboarding and configuration, native providers, monitored sub-agents, daemon execution, guest workers, desktop controls, GitHub workflows, inline editing, expanded MCP, LSP/hooks, and multi-file transactions. The latest increment adds named subscription accounts, portable conversations, decision routing, a skill marketplace, and configurable terminal layouts. It uses Go with ten direct modules. Rich chat adds Goldmark v1.8.5 (no third-party dependencies); no JavaScript/TypeScript runtime is required.
+
+The previous increment's evidence is preserved in [local-workflow-build.md](local-workflow-build.md). The broader [backlog](implementation-backlog.md) remains open where its acceptance scope exceeds the capabilities below.
+
+## Interactive workspace refinement
+
+The composer expands with wrapping and newlines, defaults to Shift+Enter for a
+newline, and keeps Alt+Enter/Ctrl+J fallbacks. Two blank rows separate the last
+transcript line from the message box. Sending a message leaves the cursor in
+the composer. `ui.composer_max_rows` and
+`ui.newline_key` are persisted options. A searchable `:settings` / `:config`
+editor exposes every configurable field, stages validated edits, saves atomically
+with a revision check, and applies appearance changes live. Runtime changes need
+a restart. Full field help and structured JSON edits are supported.
+
+Colon commands now complete names, arguments, and known task IDs. Invalid input
+stays open with usage help; `:help COMMAND` and `COMMAND --help` provide examples.
+`?` opens a help modal over the workspace. Launching the TUI resumes the newest
+saved conversation for this workspace and account. A later empty session does
+not hide one that already has messages. `:history` still browses the rest, and
+`:new` starts a fresh conversation.
+The terminal is a tab in the viewer. It stays hidden until `t`, `T`, `:terminal`,
+or an agent command opens one. Opening it does not take the keyboard. Click the
+shell, or press `i` or Enter on that tab, to type. Esc returns to the message
+box. `T` and the `+` on the viewer tab strip add another shell. Hiding a shell
+tab does not stop its process.
+Mouse dragging previews
+column sizes and persists on release,
+with cancellation and rollback on save failures. A left click focuses the pane
+under the pointer. A click on a viewer tab selects that tab without entering
+terminal input. The focused frame uses a heavier border and a cyan title in
+color themes.
+
+The chat account pill and model switcher show the provider name (OpenRouter)
+instead of a repeated profile id. A distinct account name stays in parentheses.
+The context badge uses a context length advertised by the model catalog,
+including `context_length`, `context_window`, `max_context_window`,
+`input_token_limit`, and OpenRouter `top_provider` lengths. A later connection
+event does not replace that window with a name-based guess. When no catalog or
+provider length exists, the badge shows the used token count without a
+denominator. Reported session tokens are shown as-is; the rendered transcript
+is used only when the session has not reported a count. A count above a known
+window is shown above 100%.
+
+The marketplace now uses a responsive one-to-four-column card grid with live
+search. Each card shows its name and short description; a click or Enter opens
+a centered, scrollable detail modal over the dimmed grid. Installation has
+explicit project/global buttons, progress, and result/error feedback. Closing the
+modal restores the search and selection. Keyboard navigation follows grid rows
+and columns, and mouse hitboxes follow the rendered geometry.
+
+`:skill browse` opens the grid; `:skill install ID [--scope project|global]`
+installs directly with catalog-ID/scope completion and usage help. It resolves the
+entry before installing and honors cancellation between callbacks. Installation
+does not activate the skill. No dependencies were added.
+
+Validation: full `go test -race ./...`, `go vet ./...`, and a CGO-disabled build
+passed. After the final rendering fixes, the affected UI/config/CLI race tests
+were rerun. A live Bubble Tea process under a real PTY accepted Kitty CSI-u
+Shift+Enter as `Hello\nworld`, completed `:lay<Tab><Tab>`, saved a mocked settings
+change, and received SGR mouse drag events with a changed persisted split. The
+fixture used temporary state without paid inference or real account changes.
+A separate marketplace PTY smoke test opened the real catalog, clicked a card
+using SGR mouse events, verified modal install actions, returned to the grid with
+Esc, and checked malformed install-command help. Card and modal renderings were
+also inspected at 120×36, 80×24, and 36×24.
+Rendered fixtures are in `internal/ui/testdata/snapshots`, including
+`composer-expanded`, `settings`, `commands`, and `marketplace` screens.
+
+The structural quality check remains non-clean: `ripwire . --quality-delta`
+reports 66 major findings against the existing broad sidecar baseline, plus
+new-symbol complexity/verbosity findings. One introduced join-renderer clone was
+removed. This is not a claim that the structural quality gate passed.
+
+## Implemented integration
+
+- Setup: a six-step Bubble Tea wizard, offline mode, provider/model/environment-key references, multi-repository project registration, permissions, skills/MCP/browser choices, strict private config, custom-profile preservation and import preview/apply.
+- Providers: native Responses, Anthropic and Gemini adapters, compatible Chat Completions, OpenRouter, streaming, bounded image transport, native continuation data, tool names and usage accounting. Session fingerprints reject accidental crossing of providers/environments; explicit TUI account switching rebinds the same conversation with portable history.
+- Accounts: named ChatGPT OAuth identities with validated signed identity tokens and serialized rotating refresh; isolated official Cursor/Claude CLI logins; a separate native Cursor client (`cursor-native`) with browser challenge login, API-key exchange, refresh, and local execution of Cursor's file, search, and shell requests; OpenRouter environment-key references. Switching preserves the conversation ID and readable history while dropping provider-owned continuation data. Native parents can delegate to children using other native or external profiles.
+- Routing: one bounded TypeSafe Jev/OpenRouter decision per parent turn, allowlisted profile candidates, confidence threshold, selected-profile fallback, and reported decision-token usage. Capability filtering keeps external backends from silently replacing turns that need native-only tools.
+- Marketplace: a small built-in catalog of three pinned official skills, custom HTTPS catalogs, source metadata previews, explicit project/global installation, and project-over-global resolution. Installation does not activate skills.
+- Sub-agents: model-facing spawn/status/wait/cancel, separate writable worktrees, readonly children without exec, checked provider/model overrides, bounded concurrency/queue/depth/children/steps/output, capacity yielding during child waits, durable snapshots/events, live usage and cross-process cancellation. The parent appears in the same graph. Mutable browser/MCP/hook sessions are not shared with children.
+- TUI: inline editor with revision-safe saves, drafts/search/undo/redo, palette/help/theme choices, task monitoring with timed refresh, guest file trees/review/editor/terminal support. Studio, Conversation, Review, and Focus presets, pane percentages, and terminal visibility persist. The dark studio treatment adds role hierarchy, syntax color, provider/account/model/location segments, and restrained focus markers. Render fixtures cover 80×24, 120×36, and 160×48 cells.
+- Daemon: private authenticated Unix socket, singleton handling, detached start, bounded jobs, event replay, cancellation, interrupted recovery, and session-preserving daemon chat. Local TUI writes use transient workspace ownership in daemon mode.
+- Editing: bounded JSON patch plans for create/replace/delete/move, before-images, prepared/applying/committed journals, revision rechecks, no-replace destinations, partial-crash recovery, selective conflict-preserving undo. The original conversation is retained when explicitly compacting; imports never execute stored tools.
+- Guest execution: versioned stdio worker and SSH transport with explicit root/state/capabilities, cancellation and concurrency limits. File, process, patch, review, browser and desktop RPCs remain guest-bound. SSH retains host-key verification and uses batch authentication.
+- Browser/desktop: isolated Chromium accessibility actions and screenshots, observation-bound X11/Wayland tools and leases, capability reporting, bounded model image transport, guest artifact cleanup.
+- Git/GitHub: status/diff/stage/unstage/commit, worktree management, env/gh authentication, project repository linking, PR/check queries and draft PR creation. Nothing pushes or merges automatically.
+- MCP: stdio/HTTP tools, environment-referenced auth headers, resources/templates/prompts, subscription and elicitation callback APIs, explicit endpoint CRUD, rooted native stdio server.
+- LSP/hooks: explicit language-server processes, handshake/versioned documents/diagnostics API/hover/definition; trusted bounded argv hooks at turn/tool boundaries.
+- VMs: fixed QMP/VBox lifecycle and snapshot operations, managed QEMU launch configuration and optional guest SSH workers. Snapshot jobs distinguish submission from guest readiness.
+
+## Validation
+
+The prior full integration increment passed the following checks:
+
+```sh
+BIFROST_BROWSER_TEST=1 BIFROST_TERMINAL_TEST=1 BIFROST_QEMU_INTEGRATION=1 \
+  go test -race -count=1 -timeout=90s ./...
+go vet ./...
+CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o bin/bifrost ./cmd/bifrost
+```
+
+In this environment, Go caches were set to `/tmp/bifrost-go-cache`, `/tmp/bifrost-go-mod`, and `/tmp/bifrost-go`. Socket/PTY/Chromium/QEMU fixtures ran with the permissions needed for local test processes. The command `make integration` enables the same opt-in probes; `make test`, `make vet`, and `make release` cover the usual checks.
+
+A separate executable smoke test used a temporary project/state directory, a loopback SSE provider, and a 120×36 PTY. It completed first-run onboarding, edited and saved a file in the inline editor, spawned and waited on a child agent, read completed task snapshots, ran two daemon-backed chat turns in the same conversation, opened the task monitor, exited the TUI, and stopped the daemon. Six fixture model requests were served. No API credentials or paid services were used.
+
+That increment's stripped Linux amd64 executable was statically linked and 13,861,024 bytes. Linux arm64 and Windows amd64 cross-builds also passed; these are compilation checks, not runtime validation. These size and cross-build measurements precede the account/UI increment. The structural quality gate did not pass; its existing baseline comparison reports complexity and other regressions, including test complexity. That separate maintenance result is not included in the passing functional checks above.
+
+The account/UI increment has additional race-test coverage for OAuth identity validation, refresh rotation, replacement/logout binding, external process cancellation, portable conversation switching, mixed-backend children, typed routing, marketplace catalog/install validation, immutable SHA installation, layout persistence, and source-preserving syntax coloring. A separate fake-Claude PTY smoke test switched two accounts within one session, verified that the second client received portable history without an old vendor resume ID, and exercised layout/resize/terminal persistence. An actual public, pinned marketplace skill was downloaded into temporary state without activation. No paid inference or real subscription login was performed.
+
+Final account/UI checks passed: `go test -race ./...`, `go vet ./...`, and `CGO_ENABLED=0 go build -trimpath ./cmd/bifrost`. These tests used isolated temporary config/state and the Go caches above. The final structural comparison still exits nonzero with 60 major regressions against its older sidecar baseline; it is a remaining maintenance limitation, not a passing check.
+
+Review found and corrected a queued-task cancellation/shutdown race, a daemon startup recursion bug, daemon flag/session loss, a TUI/daemon workspace-lock conflict, MCP/app config path confusion, task event cursor aggregation errors, native image/opaque-message loss, and partial patch recovery/destination-overwrite hazards. Regression tests exercise these paths. Failed smoke-test daemons were cleaned up.
+
+## Actual limits
+
+- Linux amd64 is the runtime tested here. Cross-compilation is build evidence only; Windows terminal and socket ownership limitations remain explicit. macOS desktop automation is not implemented.
+- Native providers and GitHub have local fixture coverage, not paid-account/live-repository validation. Desktop actions use injected command fixtures; real X11/Wayland/graphical guests were not controlled. QEMU integration is a disposable diskless process. No user VM/disk was changed.
+- SSH sub-agent isolation and daemon-backed SSH chat are explicitly unsupported. Direct SSH file/command/browser/desktop work is implemented. The remote terminal needs guest tools installed; the application does not provision an operating system or install guest binaries automatically.
+- MCP OAuth login UI and TUI elicitation forms remain pending. SDK callback APIs exist; an uncertain mutating tool is not blindly replayed to continue it.
+- LSP is available through explicit CLI/library calls, not editor diagnostics overlays. Hunk-level staging, background PTY reattachment, inline pixel graphics, and the full approval UI remain roadmap work.
+- Cursor/Claude subscription turns use installed vendor clients and their tools; they do not expose Bifrost's native browser/desktop/MCP/SSH tool loop. Cursor multi-account isolation is supported on Linux and explicitly unavailable on macOS because of the vendor client's shared keychain namespace. Live vendor compatibility remains unverified.
+- Native Cursor (`account login cursor-native`) is a separate account from `cursor-agent`. It speaks the Cursor 3.23.23 Connect agent protocol over HTTP/1 RunSSE, sends the CLI client version and type on each request, and executes rooted file, search, shell, shell-stream, background-shell, git-diff, and HTTP fetch requests when those permissions are enabled. Approval prechecks follow the same permissions. Diagnostics, MCP, hooks, computer use, screen recording, and sub-agents return a completed protocol result that names the missing capability. A new turn sends an empty conversation state. A resumed turn sends the saved checkpoint together with the conversation blobs Cursor stored on the client. A checkpoint whose blobs were never stored starts a fresh Cursor conversation from the readable transcript. Project instructions travel in the user message; the team-only system-prompt option is left unset. A request for workspace context is answered with the workspace path, shell, and git branch when one is visible. A stream failure includes the server's error detail when Cursor sends one. Login, refresh, and model discovery are covered by a local fake server. Live Cursor subscription acceptance was not tested.
+- Compaction is explicit and summary-driven. No automatic provider retries are performed. Session snapshots resume from the last complete turn, not an arbitrary interrupted tool instruction.
+- Worktrees start from a committed ref. Dirty parent edits are not copied or automatically merged. Children retain separate results and worktree paths for review.
+- Task aggregate events are a latest-window view; stable replay cursors are per-run. State/artifact lifecycle quotas and garbage collection need further work for long-running installations.
+- The structural quality comparison still reports complexity/verbosity and test-entrypoint/clone findings against the existing sidecar baseline. The agent tool-batch execution was separated from the model loop; large CLI/protocol/state dispatchers remain maintenance work. No clean structural-quality-gate claim is made.
+
+The README is the operational guide. Phase-wide production acceptance in the original plan has not been claimed.
+
+## Rich chat and interactive folds
+
+Chat now uses Goldmark v1.8.5 for CommonMark/GFM parsing and the existing ANSI/Lip Gloss renderer for headings, inline formatting, lists, quotes, tables, code panels, and Go/diff colors. It preserves literal code and source history, caches complete messages, and bounds the reading column. The composer supports multiline paste and grapheme-aware emoji deletion. Unicode wrapping is tested with skin tones, flags, variation selectors, and joined emoji.
+
+Provider icons are configurable with `ui.icons`: Unicode, verified Nerd Font brand marks, or ASCII labels. OpenAI and Claude logos require matching Nerd Font glyphs; fonts are not installed or changed automatically.
+
+Tool calls, provider-supplied thinking summaries, and other activity have mouse-clickable disclosures, with Tab/Shift-Tab and Enter/Space equivalents. Assistant replies can also be folded. Wheel scrolling and hit testing account for pane layout, margins, and viewport position. Tool updates retain the same fold and expanded state. Native, external, daemon, and session-history bridges carry bounded details. Thinking is shown only when explicitly returned by a provider; redacted blocks and continuation signatures are not rendered. Thinking folds can arrive after the model step completes and are not restored from opaque session state.
+
+The full race suite passed, followed by affected-package race checks after final UI refinements; vet and the Linux build passed. Screenshot fixtures show the real renderer, including an expanded thinking-summary example. The Linux CGO-disabled, unstripped build grew from 21,138,065 to 22,174,885 bytes during this increment (rendering, folds, logos, and event plumbing combined). The structural baseline check remains nonzero as described above.
+
+A real 120×36 PTY smoke sent SGR mouse press/release events to a collapsed tool row: details were absent initially, visible after the first click, and hidden after the second. Wheel input remained stable and quitting exited with status 0. The temporary smoke program was removed.

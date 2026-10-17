@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "active_provider": "local",
+  "providers": {
+    "local": {
+      "kind": "chat-completions",
+      "base_url": "http://localhost:11434/v1",
+      "model": "YOUR_LOCAL_MODEL"
+    }
+  },
+  "defaults": {
+    "project": "demo",
+    "provider": "local",
+    "skills": ["coding"],
+    "mcp_config": "",
+    "allow_write": false,
+    "allow_exec": false,
+    "browser": false,
+    "max_steps": 8,
+    "max_agents": 3
+  },
+  "projects": {
+    "demo": {
+      "provider": "local",
+      "skills": ["coding"],
+      "environment": "local"
+    }
+  },
+  "ssh": {
+    "dev": {
+      "target": "user@example-host",
+      "root": "/home/user/work",
+      "state_dir": "/home/user/.local/state/bifrost-worker",
+      "executable": "/usr/local/bin/bifrost"
+    }
+  },
+  "ui": {
+    "theme": "midnight",
+    "icons": "unicode",
+    "composer_max_rows": 8,
+    "newline_key": "shift+enter",
+    "layout": "studio",
+    "pane_proportions": [34, 46, 20],
+    "terminal_visible": true,
+    "terminal_percent": 20
+  },
+  "decision": {
+    "enabled": false
+  },
+  "marketplace": {
+    "catalog_url": "https://example.com/bifrost-skills.json"
+  },
+  "hooks": []
+}

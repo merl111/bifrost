@@ -14,10 +14,13 @@ import (
 )
 
 type taskMonitorState struct {
-	mu     sync.Mutex
-	active *TaskRuntime
-	parent domain.ID
-	cancel context.CancelFunc
+	mu   sync.Mutex
+	runs map[domain.ID]monitoredRun
+}
+
+type monitoredRun struct {
+	runtime *TaskRuntime
+	cancel  context.CancelFunc
 }
 
 func (m *taskMonitorState) option(opts options) ui.Option {
@@ -42,15 +45,16 @@ func (m *taskMonitorState) callbacks(opts options) ui.TaskMonitorCallbacks {
 		},
 		Cancel: func(_ context.Context, id domain.ID) error {
 			m.mu.Lock()
-			active := m.active
-			parent := m.parent
-			cancel := m.cancel
+			runs := make(map[domain.ID]monitoredRun, len(m.runs))
+			for parent, run := range m.runs {
+				runs[parent] = run
+			}
 			m.mu.Unlock()
-			if active != nil {
-				if id == parent && cancel != nil {
-					cancel()
+			for parent, run := range runs {
+				if id == parent {
+					run.cancel()
 				}
-				if err := active.Scheduler().Cancel(id); err == nil {
+				if err := run.runtime.Scheduler().Cancel(id); err == nil {
 					return nil
 				} else if !errors.Is(err, tasks.ErrNotFound) {
 					return err
@@ -108,11 +112,12 @@ func runMonitoredSessionTurn(ctx context.Context, opts options, st *session.Stor
 	}
 	if monitor != nil {
 		monitor.mu.Lock()
-		monitor.active = runtime
-		monitor.parent = parent.ID
-		monitor.cancel = cancel
+		if monitor.runs == nil {
+			monitor.runs = make(map[domain.ID]monitoredRun)
+		}
+		monitor.runs[parent.ID] = monitoredRun{runtime: runtime, cancel: cancel}
 		monitor.mu.Unlock()
-		defer func() { monitor.mu.Lock(); monitor.cancel = nil; monitor.mu.Unlock() }()
+		defer func() { monitor.mu.Lock(); delete(monitor.runs, parent.ID); monitor.mu.Unlock() }()
 	}
 	if cfg.OnEvent != nil {
 		cfg.OnEvent(agent.Event{Kind: "status", Text: "task " + string(parent.ID) + " · sub-agent monitoring available in :tasks"})

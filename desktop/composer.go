@@ -46,5 +46,5 @@ func (g *desktop) updateComposer() {
 	height := max(60, min(int(float64(min(max(3, rows), limit))*lineHeight)+20, max(82, windowHeight/3)))
 	g.composer.TextareaHeight(height)
 	g.composerMetrics = composerMetrics{text, width, windowHeight, g.textScale, limit, height}
-	g.send.SetEnabled(!g.busy && (g.connected || strings.HasPrefix(strings.TrimSpace(text), ":")))
+	g.send.SetEnabled(!g.operationBusy && g.activeChat().cancel == nil && (g.connected || strings.HasPrefix(strings.TrimSpace(text), ":")))
 }

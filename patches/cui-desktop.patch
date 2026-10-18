@@ -221,7 +221,7 @@ index ad31c9c..8ea0e16 100644
      widget->gap = gap;
      widget->enabled = 1; widget->opacity = 1;
 diff --git a/src/cui_gtk_desktop.c b/src/cui_gtk_desktop.c
-index 05971f4..d7e5b38 100644
+index 05971f4..2c03792 100644
 --- a/src/cui_gtk_desktop.c
 +++ b/src/cui_gtk_desktop.c
 @@ -20,21 +20,21 @@ void cui_accessibility(cui_widget *w,const char *label,const char *description)
@@ -250,6 +250,15 @@ index 05971f4..d7e5b38 100644
      else gtk_widget_activate_action(input(w),"text.redo",NULL);
  }
  static void alert_response(GtkDialog *native,int response,gpointer data)
+@@ -83,7 +83,7 @@ static gboolean key_pressed(GtkEventControllerKey *controller,guint key,guint co
+     key=gdk_keyval_to_upper(key);
+     if(key==GDK_KEY_Escape)key=CUI_KEY_ESCAPE;
+     else if(key==GDK_KEY_Return||key==GDK_KEY_KP_Enter)key=CUI_KEY_ENTER;
+-    else if(key==GDK_KEY_Tab)key=CUI_KEY_TAB;
++    else if(key==GDK_KEY_Tab||key==GDK_KEY_ISO_Left_Tab)key=CUI_KEY_TAB;
+     for(cui_command *c=w->app->commands;c;c=c->next){unsigned expected=(c->modifiers&~CUI_MOD_PRIMARY)|((c->modifiers&CUI_MOD_PRIMARY)?CUI_MOD_CONTROL:0);
+         if(c->key&&key==c->key&&mods==expected)return cui_command_invoke(c);}
+     return FALSE;
 diff --git a/src/cui_gtk_keys.c b/src/cui_gtk_keys.c
 index f6a0012..d1e2f24 100644
 --- a/src/cui_gtk_keys.c

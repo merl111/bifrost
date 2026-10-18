@@ -277,7 +277,11 @@ func (g *desktop) confirmClose() {
 
 func (g *desktop) beginClose() {
 	g.closing = true
-	g.cancelTurn()
+	for _, tab := range g.chats.items {
+		if tab.cancel != nil {
+			tab.cancel()
+		}
+	}
 	g.shell.SetEnabled(false)
 	g.workbench.root.SetEnabled(false)
 	g.status.SetText("Saving recovery drafts…")

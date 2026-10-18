@@ -2,9 +2,7 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"strings"
 
 	"bifrost/internal/cli"
 	"bifrost/internal/ui"
@@ -66,6 +64,10 @@ func (g *desktop) drain() {
 	// CUI caches unchanged frames, but must observe the current allocation after
 	// a native resize; otherwise the old surface is scaled like an image.
 	g.timeline.Refresh(g.window.Scale())
+	if g.chats.restoreScroll {
+		g.timeline.Scroll(g.activeChat().scroll)
+		g.chats.restoreScroll = false
+	}
 	g.updateLayout()
 	g.refreshTerminal()
 	g.updateMentions()
@@ -75,14 +77,35 @@ func (g *desktop) drain() {
 }
 
 func (g *desktop) setBusy(busy bool) {
-	g.busy = busy
-	g.send.SetEnabled(!busy && g.connected)
-	g.stop.SetEnabled(busy && g.turnCancel != nil)
-	g.stop.SetVisible(busy && g.turnCancel != nil)
+	g.operationBusy = busy
+	g.refreshBusy()
+}
+
+func (g *desktop) refreshBusy() {
+	g.busy = g.operationBusy
+	for _, t := range g.chats.items {
+		g.busy = g.busy || t.cancel != nil
+	}
+	t := g.activeChat()
+	g.turnCancel = t.cancel
+	g.send.SetEnabled(!g.operationBusy && t.cancel == nil && g.connected)
+	g.stop.SetEnabled(t.cancel != nil)
+	g.stop.SetVisible(t.cancel != nil)
 	g.activityToggle.SetEnabled(g.transcript.latestActivity() >= 0)
-	g.newButton.SetEnabled(!busy && g.connected)
-	g.profiles.SetEnabled(!busy && len(g.accounts) > 0)
-	g.sessionList.SetEnabled(!busy && g.connected)
+	g.newButton.SetEnabled(!g.operationBusy)
+	g.profiles.SetEnabled(!g.busy && len(g.accounts) > 0)
+	g.sessionList.SetEnabled(!g.operationBusy && g.connected)
+	if t.cancel != nil {
+		g.activity.SetText("Bifrost is working…")
+		g.status.SetText("Generating in this tab · Escape to stop")
+	} else {
+		g.activity.SetText("Ready for the next step")
+		state := t.status
+		if state == "" {
+			state = "Ready"
+		}
+		g.status.SetText(state)
+	}
 }
 
 func (g *desktop) applySnapshot(s cli.DesktopSnapshot) {
@@ -100,7 +123,9 @@ func (g *desktop) syncRuntimeSnapshot(s cli.DesktopSnapshot) {
 			tab.snapshot.Sessions[i].Active = tab.snapshot.Sessions[i].ID == selected
 		}
 		tab.snapshot.Accounts = s.Accounts
-		tab.snapshot.Connection = s.Connection
+		if tab.snapshot.Connection.Account != s.Connection.Account || tab.snapshot.Connection.Model != s.Connection.Model || tab.snapshot.Connection.Connected != s.Connection.Connected {
+			tab.snapshot.Connection = s.Connection
+		}
 		tab.snapshot.WriteEnabled = s.WriteEnabled
 		tab.snapshot.ExecEnabled = s.ExecEnabled
 	}
@@ -151,7 +176,7 @@ func (g *desktop) displaySnapshot(s cli.DesktopSnapshot) {
 	}
 	g.heading.SetText(shortText(title, 42))
 	g.heading.Tooltip(title)
-	g.setBusy(g.busy)
+	g.refreshBusy()
 }
 
 func enabledText(v bool) string {
@@ -177,111 +202,6 @@ func (g *desktop) updateConnection(info ui.ConnectionInfo) {
 	}
 }
 
-func (g *desktop) sendPrompt() {
-	prompt := strings.TrimSpace(g.composer.Text())
-	if strings.HasPrefix(prompt, ":") {
-		if err := g.executeCommand(prompt); err != nil {
-			g.showError(err)
-		} else if strings.TrimSpace(g.composer.Text()) == prompt {
-			g.replacePrompt("")
-		}
-		return
-	}
-	if g.busy || !g.connected || prompt == "" {
-		return
-	}
-	if len([]rune(prompt)) > 16<<10 {
-		g.status.SetText("Message is too long (maximum 16,384 characters, matching the TUI).")
-		return
-	}
-	origin := g.activeChat()
-	g.commandRun++
-	sessionID := snapshotSession(origin.snapshot)
-	terminal := g.terminal.session
-	ctx, cancel := context.WithCancel(g.ctx)
-	g.turnCancel = cancel
-	g.setBusy(true)
-	g.transcript.apply(ui.ChatEvent{Kind: "user", Text: prompt})
-	g.heading.SetText(shortText(prompt, 42))
-	g.activityLog = ""
-	g.feedback.FeedbackDismiss()
-	g.dirty = true
-	g.replacePrompt("")
-	g.activity.SetText("Bifrost is working…")
-	g.status.SetText("Generating · Escape to stop")
-	g.work(func(context.Context) func() {
-		var err error
-		if sessionID == "" {
-			err = g.ws.NewSession(ctx)
-		} else {
-			err = g.ws.Resume(ctx, sessionID)
-		}
-		if err == nil {
-			expanded := prompt
-			if strings.Contains(prompt, "@") {
-				var refs []string
-				expanded, refs = g.ws.MentionContext(ctx, terminal).Expand(prompt)
-				if len(refs) > 0 {
-					g.post(func() {
-						if g.activeChat() == origin {
-							g.receive(ui.ChatEvent{Kind: "status", Text: "Attached context: " + strings.Join(refs, ", ")})
-						}
-					})
-				}
-			}
-			err = g.ws.Run(ctx, expanded, func(event ui.ChatEvent) {
-				g.post(func() {
-					if g.activeChat() == origin {
-						g.receive(event)
-					} else {
-						origin.transcript.apply(event)
-						g.recordCommandOutput(event)
-						if event.Kind == "viewer" {
-							g.receiveViewer(event)
-						}
-						if event.Kind == "tool" || event.Kind == "thinking" || event.Kind == "status" {
-							origin.activity = boundedLog(origin.activity, event.Text+"\n"+event.Detail)
-						}
-					}
-				})
-			})
-		}
-		cancel()
-		snapshot, snapErr := g.ws.Snapshot(g.ctx)
-		return func() {
-			g.turnCancel = nil
-			if snapErr == nil {
-				g.syncRuntimeSnapshot(snapshot)
-				origin.snapshot = snapshot
-				if g.activeChat() == origin {
-					live := g.transcript
-					g.applySnapshot(snapshot)
-					g.transcript = live
-					origin.transcript = live
-					g.dirty = true
-				}
-				g.refreshChatTabs()
-			}
-			g.setBusy(false)
-			g.activity.SetText("Ready for the next step")
-			g.status.SetText("Conversation saved")
-			if errors.Is(err, context.Canceled) {
-				g.status.SetText("Stopped · partial turn retained")
-			} else if err != nil {
-				if g.activeChat() == origin {
-					g.receive(ui.ChatEvent{Kind: "error", Text: err.Error()})
-				} else {
-					origin.transcript.apply(ui.ChatEvent{Kind: "error", Text: err.Error()})
-				}
-				g.status.SetText("Turn failed · details in conversation")
-			}
-			if snapErr != nil {
-				g.showError(snapErr)
-			}
-		}
-	})
-}
-
 func (g *desktop) receive(e ui.ChatEvent) {
 	if e.Kind == "viewer" {
 		g.receiveViewer(e)
@@ -290,7 +210,7 @@ func (g *desktop) receive(e ui.ChatEvent) {
 	if e.Connection != nil {
 		g.updateConnection(*e.Connection)
 	}
-	g.recordCommandOutput(e)
+	g.recordCommandOutputForRun(e, g.activeChat().runID)
 	g.transcript.apply(e)
 	g.dirty = true
 	switch e.Kind {
@@ -346,9 +266,39 @@ func (g *desktop) changeConversation(action func(context.Context) error) {
 	})
 }
 
-func (g *desktop) newSession() { g.changeConversation(g.ws.NewSession) }
+func (g *desktop) newSession() { g.addChat("") }
 func (g *desktop) resume(id string) {
-	g.changeConversation(func(ctx context.Context) error { return g.ws.Resume(ctx, id) })
+	if g.operationBusy {
+		return
+	}
+	for i, tab := range g.chats.items {
+		if snapshotSession(tab.snapshot) == id {
+			g.selectChat(i)
+			return
+		}
+	}
+	if len(g.chats.items) >= 32 {
+		g.status.SetText("Close a tab before opening more (32-tab limit)")
+		return
+	}
+	g.setBusy(true)
+	g.work(func(ctx context.Context) func() {
+		err := g.ws.Resume(ctx, id)
+		snapshot, snapErr := g.ws.Snapshot(ctx)
+		return func() {
+			g.setBusy(false)
+			if err != nil {
+				g.showError(err)
+				return
+			}
+			if snapErr != nil {
+				g.showError(snapErr)
+				return
+			}
+			g.addChat("")
+			g.displaySnapshot(snapshot)
+		}
+	})
 }
 func (g *desktop) switchAccount(id string) {
 	g.changeConversation(func(ctx context.Context) error { return g.ws.SwitchAccount(ctx, id) })

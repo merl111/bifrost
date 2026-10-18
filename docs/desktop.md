@@ -66,13 +66,27 @@ hidden at narrow sizes; their toolbar buttons and keyboard shortcuts reveal them
   and details; Copy/Read full message on that row includes the entire group.
   The Latest activity button jumps to and toggles the latest group. There is no
   second activity log panel competing with the conversation above the composer.
-- Chat tabs preserve their own conversation, composer draft, activity and
-  transcript. New/Rename/Close buttons and `:chat` operate on tabs. Tabs may be
-  switched while streaming; events remain attached to their originating chat.
-  One runtime operation runs at a time. Account/model switching preserves
-  readable history and occurs between turns. All tabs advertise the shared active
-  profile; switching a tab cannot restore an obsolete account label. Closing a
-  tab with an unsent message requires an explicit discard action.
+- A visible tab strip runs independent conversations concurrently, with up to
+  32 open tabs. Each tab retains its own draft, transcript, activity and reading
+  position. **+ / Ctrl+N** opens a tab; **Ctrl+Tab / Ctrl+Shift+Tab** cycles;
+  **Ctrl+W** closes the selected idle tab. Arrow buttons handle overflow on narrow
+  windows. Running indicators and unread-result dots make background state visible.
+  **Stop/Escape cancels only the selected tab**; opening or closing another idle
+  tab does not interrupt background turns. Closing a running tab requires stopping
+  it first; closing an unsent draft requires an explicit discard action.
+- Saved conversations reopen in their existing tab, or a new tab if not already
+  open. History stays in the shared session store; the open-tab arrangement and
+  unsent composer drafts are not restored after application exit. All tabs share
+  the workspace account/model, and switching it waits until every turn finishes.
+  Native API and Cursor-native turns use independent session state. External
+  Cursor/Claude CLI accounts retain their existing one-turn-per-account lock and
+  report a busy-account error if that account is already running.
+- Background events cannot replace the active transcript or open the source
+  viewer over another conversation. The most recent background viewer request
+  opens when its tab is selected. Command output includes the originating turn ID.
+  Closing the application cancels all tab turns and waits for workers to finish
+  before releasing shared resources. Tabs share rooted workspace files and
+  revision checks; they do not create separate Git worktrees.
 - Ctrl+P opens files; Ctrl+B toggles the sidebar; Ctrl+J outside the composer
   toggles context; Ctrl+R loads review; Ctrl+T opens the terminal. Files filter
   within the current directory. Git review is read-only, as in the TUI; existing
@@ -110,6 +124,10 @@ rendered messages are bounded to 32 KiB; Read full message and Copy use retained
 content. Editable files and read-only source views are bounded to 2 MiB. There
 are up to 32 cached documents; dirty buffers are never evicted to make room.
 Saved session data remains in the shared session store.
+
+![Concurrent native conversation tabs](images/desktop-parallel-tabs.png)
+
+![Tab overflow at 640×600](images/desktop-tabs-narrow.png)
 
 ## Design choices and research
 

@@ -28,6 +28,10 @@ type TaskRuntime struct {
 	closeErr   error
 }
 
+// Serialize recovery and scheduler registration so another in-process turn
+// cannot mistake a not-yet-locked scheduler directory for an orphaned run.
+var taskRuntimeStartup sync.Mutex
+
 // OpenTaskRuntime creates a per-turn task graph below <state>/tasks/<turn>.
 // Remote backends are rejected until child execution can be placed in the
 // same remote environment; silently falling back to host paths would violate
@@ -48,6 +52,8 @@ func OpenTaskRuntime(ctx context.Context, opts options, cfg *agent.Config, maxCo
 	if maxConcurrent > 32 {
 		return nil, errors.New("task runtime: max concurrency must be <= 32")
 	}
+	taskRuntimeStartup.Lock()
+	defer taskRuntimeStartup.Unlock()
 	if err := tasks.RecoverRuns(filepath.Join(opts.statePath(), "tasks")); err != nil {
 		return nil, fmt.Errorf("task runtime: recover previous runs: %w", err)
 	}

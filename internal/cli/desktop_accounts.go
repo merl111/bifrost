@@ -10,16 +10,22 @@ func (d *DesktopWorkspace) DiscoverModels(ctx context.Context, request ui.Accoun
 }
 
 func (d *DesktopWorkspace) AddAccount(ctx context.Context, request ui.AccountAddRequest) error {
+	d.conversations.Lock()
+	defer d.conversations.Unlock()
 	_, _, _, err := d.chat.addAccount(ctx, request)
 	return err
 }
 
 func (d *DesktopWorkspace) RemoveAccount(ctx context.Context, id string) error {
+	d.conversations.Lock()
+	defer d.conversations.Unlock()
 	_, err := d.chat.removeAccount(ctx, id)
 	return err
 }
 
 func (d *DesktopWorkspace) SwitchModel(ctx context.Context, account, model string) error {
+	d.conversations.Lock()
+	defer d.conversations.Unlock()
 	_, _, _, err := d.chat.switchAccountModel(ctx, account, model)
 	return err
 }

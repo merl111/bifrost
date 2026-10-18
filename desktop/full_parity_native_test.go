@@ -14,6 +14,9 @@ import (
 // These scenarios use the real native event loop, buffers, PTYs and runtime.
 // Remote project details are fixtures so no user account or network is touched.
 func (p *nativeParity) fullParity(g *desktop) (bool, error) {
+	if p.step >= 108 && p.step <= 111 {
+		return p.parallelChatParity(g)
+	}
 	if p.step >= 130 {
 		return p.redesignParity(g)
 	}
@@ -113,44 +116,8 @@ func (p *nativeParity) fullParity(g *desktop) (bool, error) {
 		if g.composer.Text() != "original draft" {
 			return fail("chat draft lost on tab switch")
 		}
+		p.parallelRequests = p.requests.Load()
 		g.setPrompt("Background turn")
-		g.sendPrompt()
-	case 108:
-		if !g.busy {
-			return false, nil
-		}
-		g.selectChat(1)
-		if g.composer.Text() != "other draft" {
-			return fail("parallel draft overwritten")
-		}
-		g.cancelTurn()
-	case 109:
-		if g.busy {
-			return false, nil
-		}
-		if len(g.transcript.messages) != 0 || g.composer.Text() != "other draft" {
-			return fail("background completion contaminated active tab")
-		}
-		g.sendPrompt()
-	case 110:
-		if !g.busy {
-			return false, nil
-		}
-		g.cancelTurn()
-	case 111:
-		if g.busy {
-			return false, nil
-		}
-		first, second := snapshotSession(g.chats.items[0].snapshot), snapshotSession(g.chats.items[1].snapshot)
-		if first == "" || second == "" || first == second {
-			return fail("chat tabs reused session identity")
-		}
-		g.setPrompt(":not-a-command")
-		g.sendPrompt()
-		if g.composer.Text() != ":not-a-command" {
-			return fail("invalid command erased input")
-		}
-		g.setPrompt(":terminal new")
 		g.sendPrompt()
 	case 112:
 		if g.terminal.session == nil {

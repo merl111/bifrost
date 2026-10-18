@@ -51,7 +51,7 @@ type desktop struct {
 	cwd, previewPath, activityLog                                                  string
 	viewRequest, dirRequest                                                        uint64
 	commandRun                                                                     uint64
-	busy, connected, sidebarVisible, inspectorVisible                              bool
+	operationBusy, busy, connected, sidebarVisible, inspectorVisible               bool
 	turnCancel                                                                     context.CancelFunc
 	transcript                                                                     transcript
 	timeline                                                                       cui.ChatComponent
@@ -90,6 +90,7 @@ func newDesktop(ctx context.Context, app *cui.App, ws *cli.DesktopWorkspace, wid
 	g.buildSidebar()
 	main := g.body.Pane(1)
 	g.buildToolbar(main)
+	g.buildChatTabs(main)
 	g.contextSplit = main.Split(cui.Horizontal, .61)
 	g.contextSplit.SetSplitScrollable(0, false)
 	g.contextSplit.SetSplitScrollable(1, false)
@@ -144,7 +145,7 @@ func (g *desktop) buildSidebar() {
 	name := brand.Box(cui.Vertical, 2)
 	label(name, "Bifrost", 16, foreground).Font("", 16, 600)
 	label(name, shortText(filepath.Base(g.ws.Root), 24), 10, muted).Tooltip(g.ws.Root)
-	g.newButton = button(g.sidebar, "New conversation", g.newSession)
+	g.newButton = button(g.sidebar, "New conversation", func() { g.addChat("") })
 	g.newButton.SetSymbol(cui.SymbolPlus)
 	style(g.newButton, accentSoft, foreground, 9, false, 9)
 	nav := g.sidebar.Box(cui.Horizontal, 4)
@@ -209,7 +210,6 @@ func (g *desktop) buildSidebar() {
 }
 
 func (g *desktop) buildConversation() {
-	g.buildChatTabs()
 	g.upperSpace = g.content.Box(cui.Vertical, 0)
 	g.upperSpace.Expand(true)
 	g.welcomeCompact = label(g.content, "What are we building?", 16, foreground)
@@ -376,7 +376,10 @@ func (g *desktop) bindCommands() {
 			g.toggleInspector()
 		}
 	})
-	g.primaryCommand("New conversation", 'n', g.newSession)
+	g.primaryCommand("New conversation", 'n', func() { g.addChat("") })
+	g.primaryCommand("Close conversation tab", 'w', g.closeChat)
+	g.app.Command("Next conversation tab", cui.KeyTab, cui.ModControl, func() { g.cycleChat(1) })
+	g.app.Command("Previous conversation tab", cui.KeyTab, cui.ModControl|cui.ModShift, func() { g.cycleChat(-1) })
 	g.primaryCommand("Review changes", 'r', func() {
 		if g.preview.HasFocus() {
 			g.editorUndo(true)

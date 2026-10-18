@@ -10,6 +10,9 @@ import (
 )
 
 func (p *nativeParity) walkthroughParity(g *desktop) (bool, error) {
+	if p.step >= 180 {
+		return p.chatTabsParity(g)
+	}
 	fail := func(s string) (bool, error) { return false, fmt.Errorf("walkthrough phase %d: %s", p.step, s) }
 	switch p.step {
 	case 170:
@@ -94,7 +97,8 @@ func (p *nativeParity) walkthroughParity(g *desktop) (bool, error) {
 		if len(g.viewer.steps) != 0 {
 			return fail("end walkthrough failed")
 		}
-		return true, nil
+		p.step = 180
+		return false, nil
 	}
 	p.step++
 	return false, nil

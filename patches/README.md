@@ -7,7 +7,7 @@ Bifrost's native desktop was verified with
 
 The patch preserves the local toolkit changes used by this Bifrost build:
 editable Code controls, native key and modifier forwarding, text ranges and
-related regression tests. It contains the complete diff from that published revision to the local
+related regression tests, including GTK Shift+Tab normalization for window commands. It contains the complete diff from that published revision to the local
 CUI tree used by this snapshot, including local Windows memory-test additions. The separate CUI repository is not modified by committing
 this patch to Bifrost.
 

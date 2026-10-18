@@ -8,6 +8,10 @@ import (
 )
 
 func (g *desktop) recordCommandOutput(e ui.ChatEvent) {
+	g.recordCommandOutputForRun(e, g.commandRun)
+}
+
+func (g *desktop) recordCommandOutputForRun(e ui.ChatEvent, run uint64) {
 	if e.Kind != "tool" || !strings.HasPrefix(strings.ToLower(e.Text), "exec") {
 		return
 	}
@@ -15,7 +19,7 @@ func (g *desktop) recordCommandOutput(e ui.ChatEvent) {
 	if id == "" {
 		id = e.Text
 	}
-	id = fmt.Sprintf("%d:%s", g.commandRun, id)
+	id = fmt.Sprintf("%d:%s", run, id)
 	command, output, exit, done := ui.ExecToolDetail(e.Detail)
 	var target *terminalView
 	for _, t := range g.terminalTabs {

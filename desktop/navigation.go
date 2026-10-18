@@ -116,7 +116,7 @@ func (g *desktop) updateLayout() {
 			g.content.Padding(28)
 		}
 	}
-	g.chats.root.SetVisible((height > 640 && width >= 900) || len(g.chats.items) > 1)
+	g.resizeChatTabs()
 	empty := len(g.transcript.messages) == 0
 	tiny := width < 700 || height < 560
 	g.welcome.SetVisible(empty && !tiny)
@@ -184,7 +184,7 @@ func (g *desktop) openPalette() {
 	for _, spec := range ui.Commands() {
 		add(":"+spec.Usage, spec.Help, false, func() { g.openCommand(spec.Name + " ") })
 	}
-	add("New conversation", "Ctrl+N", g.busy || !g.connected, g.newSession)
+	add("New conversation", "Ctrl+N", g.operationBusy || !g.connected, func() { g.addChat("") })
 	add("Browse workspace files", "Ctrl+P", false, g.showFiles)
 	add("Review working tree changes", "Ctrl+R", false, g.loadReview)
 	add("Focus composer", "Ctrl+L", false, func() { g.composer.Focus() })
@@ -200,7 +200,7 @@ func (g *desktop) openPalette() {
 		if s.Active {
 			continue
 		}
-		add(s.Title, "Conversation · "+s.UpdatedAt, g.busy, func() { g.resume(s.ID) })
+		add(s.Title, "Conversation · "+s.UpdatedAt, g.operationBusy, func() { g.resume(s.ID) })
 	}
 	for _, f := range g.files {
 		if !f.IsDir {

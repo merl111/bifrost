@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"bifrost/internal/cli"
+	"bifrost/internal/ui"
 	cui "cui.local/cui"
 )
 
@@ -12,12 +14,21 @@ type chatTab struct {
 	title, draft, activity string
 	snapshot               cli.DesktopSnapshot
 	transcript             transcript
+	cancel                 context.CancelFunc
+	unread                 bool
+	status                 string
+	viewer                 *ui.ChatEvent
+	runID                  uint64
+	scroll                 float64
 }
 type chatTabs struct {
-	root      cui.Widget
-	items     []*chatTab
-	active    int
-	selectBox cui.Widget
+	root            cui.Widget
+	items           []*chatTab
+	active          int
+	buttons         []cui.Widget
+	previous, next  cui.Widget
+	capacity, start int
+	restoreScroll   bool
 }
 
 func snapshotSession(s cli.DesktopSnapshot) string {
@@ -29,48 +40,114 @@ func snapshotSession(s cli.DesktopSnapshot) string {
 	return ""
 }
 func (g *desktop) activeChat() *chatTab { return g.chats.items[g.chats.active] }
-func (g *desktop) buildChatTabs() {
+func (g *desktop) buildChatTabs(parent cui.Widget) {
 	g.chats.items = []*chatTab{{}}
-	row := g.content.Box(cui.Horizontal, 6)
+	host := parent.Stack()
+	host.Expand(false)
+	host.StackLayer(cui.LayerFill, 0, 0, 0).MinSize(0, 54)
+	row := host.StackLayer(cui.LayerFill, 0, 0, 0).Box(cui.Horizontal, 6)
+	style(row, rail, foreground, 0, false, 8)
 	g.chats.root = row
-	g.chats.selectBox = row.Select([]string{"Main chat"})
-	g.chats.selectBox.Expand(true)
-	g.chats.selectBox.OnAction(func(w cui.Widget) { g.selectChat(w.Selected()) })
-	iconButton(row, cui.SymbolPlus, "New chat tab", func() { g.addChat("") })
-	iconButton(row, cui.SymbolEdit, "Rename chat tab", func() { g.openCommand("chat rename ") })
-	iconButton(row, cui.SymbolClose, "Close chat tab", g.closeChat)
+	g.chats.capacity = 4
+	g.chats.previous = button(row, "‹", func() { g.cycleChat(-1) })
+	for i := 0; i < 32; i++ {
+		w := button(row, "", func() { g.selectChat(i) })
+		w.SetVisible(false)
+		g.chats.buttons = append(g.chats.buttons, w)
+	}
+	g.chats.next = button(row, "›", func() { g.cycleChat(1) })
+	spacer := row.Box(cui.Horizontal, 0)
+	spacer.Expand(true)
+	iconButton(row, cui.SymbolPlus, "New conversation · Ctrl+N", func() { g.addChat("") })
+	iconButton(row, cui.SymbolEdit, "Rename tab · :chat rename NAME", func() { g.openCommand("chat rename ") })
+	iconButton(row, cui.SymbolClose, "Close selected tab · Ctrl+W", g.closeChat)
 }
+
+func (g *desktop) cycleChat(delta int) {
+	g.selectChat((g.chats.active + delta + len(g.chats.items)) % len(g.chats.items))
+}
+
+func chatTitle(t *chatTab, index int) string {
+	title := t.title
+	if title == "" {
+		for _, s := range t.snapshot.Sessions {
+			if s.Active {
+				title = s.Title
+				break
+			}
+		}
+	}
+	if title == "(empty conversation)" {
+		title = "New conversation"
+	}
+	if title == "" {
+		title = fmt.Sprintf("Chat %d", index+1)
+	}
+	return title
+}
+
 func (g *desktop) rememberChat() {
 	t := g.activeChat()
 	t.draft = g.composer.Text()
 	t.transcript = g.transcript
 	t.activity = g.activityLog
+	if !g.chats.restoreScroll {
+		t.scroll = g.timeline.ScrollOffset()
+	}
 }
 func (g *desktop) refreshChatTabs() {
-	var titles []string
-	for i, t := range g.chats.items {
-		title := t.title
-		if title == "" {
-			for _, s := range t.snapshot.Sessions {
-				if s.Active {
-					title = s.Title
-					break
-				}
-			}
-		}
-		if title == "(empty conversation)" {
-			title = "New conversation"
-		}
-		if title == "" {
-			title = fmt.Sprintf("Chat %d", i+1)
-		}
-		titles = append(titles, shortText(title, 32))
+	capacity := max(1, g.chats.capacity)
+	if g.chats.active < g.chats.start {
+		g.chats.start = g.chats.active
 	}
-	g.chats.selectBox.Items(titles)
-	g.chats.selectBox.SetSelected(g.chats.active)
+	if g.chats.active >= g.chats.start+capacity {
+		g.chats.start = g.chats.active - capacity + 1
+	}
+	g.chats.start = max(0, min(g.chats.start, len(g.chats.items)-capacity))
+	overflow := len(g.chats.items) > capacity
+	g.chats.previous.SetVisible(overflow)
+	g.chats.next.SetVisible(overflow)
+	for i, w := range g.chats.buttons {
+		visible := i < len(g.chats.items) && i >= g.chats.start && i < g.chats.start+capacity
+		w.SetVisible(visible)
+		if !visible {
+			continue
+		}
+		t := g.chats.items[i]
+		title := chatTitle(t, i)
+		mark, state := "", ""
+		if t.cancel != nil {
+			mark, state = "◌  ", " · Running"
+		} else if t.unread {
+			mark, state = "●  ", " · Unread result"
+		}
+		w.SetText(mark + shortText(title, 20))
+		w.Tooltip(title + state)
+		w.Accessibility(title+state, "Switch conversation")
+		bg, fg := rail, muted
+		if i == g.chats.active {
+			bg, fg = accentSoft, foreground
+		} else if t.unread {
+			fg = cyan
+		}
+		style(w, bg, fg, 7, i == g.chats.active, 8)
+	}
 }
+
+func (g *desktop) resizeChatTabs() {
+	width, _, ok := g.chats.root.AllocatedSize()
+	if !ok {
+		return
+	}
+	capacity := max(1, (width-int(190*g.textScale))/int(200*g.textScale))
+	if capacity != g.chats.capacity {
+		g.chats.capacity = capacity
+		g.refreshChatTabs()
+	}
+}
+
 func (g *desktop) selectChat(index int) {
-	if g.busy && g.turnCancel == nil {
+	if g.operationBusy {
 		g.refreshChatTabs()
 		return
 	}
@@ -79,16 +156,28 @@ func (g *desktop) selectChat(index int) {
 	}
 	g.rememberChat()
 	g.chats.active = index
+	g.chats.restoreScroll = true
+	g.restoreChat()
+}
+
+func (g *desktop) restoreChat() {
+	g.chats.restoreScroll = true
 	t := g.activeChat()
 	g.replacePrompt(t.draft)
 	g.displaySnapshot(t.snapshot)
 	g.transcript = t.transcript
 	g.activityLog = t.activity
+	t.unread = false
+	g.refreshBusy()
+	if t.viewer != nil {
+		g.receiveViewer(*t.viewer)
+		t.viewer = nil
+	}
 	g.dirty = true
 	g.refreshChatTabs()
 }
 func (g *desktop) addChat(name string) {
-	if g.busy && g.turnCancel == nil {
+	if g.operationBusy {
 		return
 	}
 	if len(g.chats.items) >= 32 {
@@ -103,18 +192,15 @@ func (g *desktop) addChat(name string) {
 	g.selectChat(len(g.chats.items) - 1)
 }
 func (g *desktop) closeChat() {
-	if g.busy {
+	if g.operationBusy || g.activeChat().cancel != nil {
 		g.showError(fmt.Errorf("stop the current operation before closing a chat"))
 		return
 	}
-	if len(g.chats.items) == 1 {
-		g.newSession()
-		return
-	}
+
 	if strings.TrimSpace(g.composer.Text()) != "" {
 		tab := g.activeChat()
 		g.window.Alert("Close chat with an unsent message?", "The sent conversation is saved. Closing this tab discards its unsent message.", "Discard draft & close", func(result int, _ string) {
-			if result == cui.DialogAccepted && g.activeChat() == tab && !g.busy {
+			if result == cui.DialogAccepted && g.activeChat() == tab && !g.operationBusy && tab.cancel == nil {
 				g.removeChat()
 			}
 		})
@@ -125,17 +211,18 @@ func (g *desktop) closeChat() {
 
 func (g *desktop) removeChat() {
 	i := g.chats.active
+	if len(g.chats.items) == 1 {
+		s := g.activeChat().snapshot
+		s.History, s.Sessions = nil, nil
+		g.chats.items = append(g.chats.items, &chatTab{snapshot: s})
+	}
 	g.chats.items = append(g.chats.items[:i], g.chats.items[i+1:]...)
 	g.chats.active = -1
 	// The removed tab has already retained its history in the session store.
 	target := min(i, len(g.chats.items)-1)
 	g.chats.active = target
-	t := g.activeChat()
-	g.replacePrompt(t.draft)
-	g.displaySnapshot(t.snapshot)
-	g.transcript = t.transcript
-	g.activityLog = t.activity
-	g.refreshChatTabs()
+	g.chats.restoreScroll = true
+	g.restoreChat()
 }
 func (g *desktop) commandChat(a []string) error {
 	if len(a) == 0 {

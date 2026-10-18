@@ -1,5 +1,47 @@
 # Current implementation evidence — 15 October 2026
 
+## Parallel desktop conversations — 18 October 2026
+
+The native CUI desktop now has a visible tab strip and independent running turns.
+Tabs retain drafts, transcript/activity, reading position and unread completion
+state. Ctrl+N opens a tab, Ctrl+W closes an idle tab, and Ctrl+Tab / Ctrl+Shift+Tab
+cycles. Stop/Escape is scoped to the selected tab; application shutdown cancels
+all turns. Saved running conversations focus their existing tab. Overflow arrows
+keep the selected tab reachable at 640×600. Account/model changes remain exclusive;
+external vendor CLI per-account locks still apply. Tabs share workspace files,
+not separate worktrees. The open-tab arrangement is not restored after restart.
+
+`DesktopWorkspace.RunConversation` copies turn configuration and owns separate
+session state while retaining existing session locks, provider binding and
+revision-safe persistence. The task monitor tracks multiple runtimes. A regression
+caught and fixed a recovery/registration race during concurrent scheduler startup.
+The CUI compatibility patch now also normalizes GTK ISO_Left_Tab for window
+commands; actual keyboard input exposed this difference from ordinary Tab.
+
+Validation uses temporary projects/state, a loopback streaming provider and Xvfb,
+with no paid inference or real accounts:
+
+- Full root race suite, desktop race tests, both vet checks and both executable
+  builds pass, including the CGO-disabled TUI.
+- 100 repetitions of the two concurrency regressions passed after the scheduler
+  fix. They cover overlapping provider calls, isolated cancellation and history,
+  follow-up continuity, duplicate-session rejection and shutdown cancellation.
+- The native fixture checks two overlapping HTTP streams through real Send/tab
+  controls, independent Stop, idle-tab close while another runs, unread badges,
+  reopening running sessions, actual keyboard shortcuts, 640×600 overflow and
+  scroll/draft restoration. Captures are in the README and desktop guide.
+- Ripwire's Git-HEAD delta against `4627001a6` remains non-clean: 12 gating
+  duplication/clone findings in thin adapters and tab cycling, plus minor and
+  new-symbol findings. Functional test success is not a clean structural gate.
+  The growing native parallel test cases were separated into their own helper;
+  unrelated adapters were not refactored solely to remove syntactic matches.
+- The bundled CUI patch passes reverse-apply verification against the local
+  toolkit. Existing GTK measurement/focus warnings still appear in the full
+  fixture; the tested native interactions and requested window sizes pass.
+
+Live vendor interoperability and macOS/Windows runtime behavior were not tested.
+
+
 ## Guided explanations, task-aware skills and terminal identity — 17 October 2026
 
 Both frontends now accept `:explain TOPIC` to prepare a short, editable request.

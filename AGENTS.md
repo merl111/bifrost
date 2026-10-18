@@ -68,8 +68,12 @@ Accounts and Settings directly. Project overview and common/advanced configurati
 share one staged model; refresh must retain unfinished form edits. Keep catalog
 preview/install request identity and install scope intact across navigation.
 Native render regressions include 800×720 and 2560×1440 workspace pages.
-Chat tabs retain history but share runtime account identity; keep profile labels
-synchronized. Preserve pending settings across field changes and validate all
+Chat tabs execute concurrently through `DesktopWorkspace.RunConversation`, with
+independent session history, cancellation, drafts, reading position and unread
+state. Keep events and command-output IDs attached to their originating tab.
+Account/model operations remain exclusive across running tabs. The task monitor
+tracks all active turn runtimes; scheduler recovery/registration is serialized.
+All tabs share runtime account identity; keep profile labels synchronized. Preserve pending settings across field changes and validate all
 edited values on Save. Recovery writes become durable only on success, failed
 reloads retain buffers, and asynchronous reloads must not steal file selection.
 The README screenshot tour uses native fixtures. Its logo is in

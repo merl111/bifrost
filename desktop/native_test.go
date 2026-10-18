@@ -35,6 +35,9 @@ func TestNativeWorkspace(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.Copy(io.Discard, r.Body)
 		if requests.Add(1) > 1 {
+			w.Header().Set("Content-Type", "text/event-stream")
+			fmt.Fprint(w, "data: {\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"I’m checking the code for this conversation. You can switch tabs while I work.\"}}]}\n\n")
+			w.(http.Flusher).Flush()
 			select {
 			case <-r.Context().Done():
 			case <-stopFixture:
@@ -112,7 +115,7 @@ func TestNativeWorkspace(t *testing.T) {
 			}
 		}
 	}
-	parity := &nativeParity{root: root, state: state, capture: capture}
+	parity := &nativeParity{root: root, state: state, capture: capture, requests: &requests}
 	app.Every(450, func() {
 		defer func() {
 			if failed != nil {
@@ -217,7 +220,7 @@ func TestNativeWorkspace(t *testing.T) {
 				failed = fmt.Errorf("cancel status: %s", g.status.Text())
 			}
 			g.toggleSidebar()
-			g.newSession()
+			g.changeConversation(g.ws.NewSession)
 			phase++
 		case 7:
 			if g.busy {

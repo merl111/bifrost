@@ -15,20 +15,21 @@ import (
 // desktop executable. It has no native GUI dependency. Call Close after workers
 // have stopped; callbacks and snapshots may block and belong off the UI thread.
 type DesktopWorkspace struct {
-	Root         string
-	Backend      environment.Backend
-	chat         *workspaceChat
-	cleanup      func()
-	once         sync.Once
-	Settings     ui.SettingsCallbacks
-	Marketplace  ui.MarketplaceCallbacks
-	Tasks        ui.TaskMonitorCallbacks
-	Projects     ui.ProjectCallbacks
-	Appearance   config.UISettings
-	StateDir     string
-	TerminalArgv []string
-	TerminalDir  string
-	SaveLayout   func(ui.LayoutSettings) error
+	Root          string
+	Backend       environment.Backend
+	chat          *workspaceChat
+	cleanup       func()
+	once          sync.Once
+	conversations sync.RWMutex
+	Settings      ui.SettingsCallbacks
+	Marketplace   ui.MarketplaceCallbacks
+	Tasks         ui.TaskMonitorCallbacks
+	Projects      ui.ProjectCallbacks
+	Appearance    config.UISettings
+	StateDir      string
+	TerminalArgv  []string
+	TerminalDir   string
+	SaveLayout    func(ui.LayoutSettings) error
 }
 
 type DesktopSnapshot struct {
@@ -124,7 +125,13 @@ func OpenDesktopWorkspace(ctx context.Context, args []string, stderr io.Writer) 
 }
 
 func (d *DesktopWorkspace) Close() {
-	d.once.Do(func() { d.chat.close(); d.cleanup() })
+	d.once.Do(func() {
+		d.chat.cancel()
+		d.conversations.Lock()
+		defer d.conversations.Unlock()
+		d.chat.close()
+		d.cleanup()
+	})
 }
 
 func (d *DesktopWorkspace) Run(ctx context.Context, prompt string, emit func(ui.ChatEvent)) error {
@@ -169,17 +176,16 @@ func (d *DesktopWorkspace) NewSession(ctx context.Context) error {
 }
 
 func (d *DesktopWorkspace) Resume(ctx context.Context, id string) error {
-	d.chat.mu.Lock()
-	same := string(d.chat.current.ID) == id
-	d.chat.mu.Unlock()
-	if same {
-		return ctx.Err()
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	_, _, err := d.chat.resumeSession(ctx, id)
 	return err
 }
 
 func (d *DesktopWorkspace) SwitchAccount(ctx context.Context, id string) error {
+	d.conversations.Lock()
+	defer d.conversations.Unlock()
 	_, err := d.chat.switchAccount(ctx, id)
 	return err
 }

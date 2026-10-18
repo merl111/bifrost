@@ -20,6 +20,9 @@ import (
 // Runs in the same native event loop as TestNativeWorkspace. Every wait yields
 // to GTK; assertions inspect actual controls and temporary on-disk results.
 type nativeParity struct {
+	requests             *atomic.Int32
+	parallelRequests     int32
+	tabCount             int
 	expanded             string
 	reviewDraft          *editorDraft
 	blockedDraft         string

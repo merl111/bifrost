@@ -15,10 +15,11 @@ permissions and workspace services.
 [Terminal quick start](#terminal-quick-start) · [Configuration](docs/configuration.md) ·
 [Build evidence](docs/current-build.md)
 
-![Bifrost conversation with clearly separated user messages and grouped activity](docs/images/desktop-chat-organized.png)
+![Two conversations running in parallel in the native CUI desktop](docs/images/desktop-parallel-tabs.png)
 
 - **Conversations you can follow.** Your prompts have distinct bubbles; execution
-  activity folds away, and each tab retains its conversation and draft.
+  activity folds away, and visible tabs run conversations concurrently while retaining
+  their own drafts, history and reading position.
 - **A project can contain several repositories.** Inspect branches and changes,
   open repository workspaces, and set project-specific provider and tool defaults.
 - **Code stays close to the conversation.** Revision-checked editing, undo/redo,
@@ -64,6 +65,8 @@ sessions work in the desktop too:
 | Desktop shortcut | Action |
 | --- | --- |
 | `Enter` / `Shift+Enter` | Send / add a newline |
+| `Ctrl+N` / `Ctrl+W` | New / close conversation tab |
+| `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous conversation tab |
 | `Ctrl+K` | Search commands, files and conversations |
 | `Ctrl+P` | Browse workspace files |
 | `Ctrl+L` | Focus the composer |
@@ -71,11 +74,17 @@ sessions work in the desktop too:
 | `Ctrl+F` in the editor | Find in file |
 | `Ctrl+T` | Open the terminal |
 | `Ctrl+B` / `Ctrl+J` outside the composer | Toggle sidebar / context pane |
-| `Escape` during generation | Stop the turn |
+| `Escape` during generation | Stop the selected tab’s turn |
 
 See [the desktop guide](docs/desktop.md) for custom CUI paths, prerequisites,
 permissions, all workflows and the test commands. The desktop lives in a separate
 Go module; the TUI still builds with `CGO_ENABLED=0`.
+
+Open a tab with **+** or **Ctrl+N**, send a message, then open another tab and
+send there too. Running tabs keep streaming in the background. A dot marks an
+unread result; Stop/Escape affects the selected tab only. Account/model changes
+wait until all turns finish. Vendor CLI adapters retain their per-account lock;
+native API and Cursor-native turns have independent conversation state.
 
 ## Step-by-step explanations and reviews
 

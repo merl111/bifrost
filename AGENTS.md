@@ -187,7 +187,8 @@ substitute for tests or a declaration of production readiness.
   unverified. Do not promise subscription access merely because an adapter exists.
   Native Cursor interoperability research is in
   [docs/research/cursor-client-analysis.md](docs/research/cursor-client-analysis.md),
-  with versioned static evidence. It is not an implemented native backend.
+  with versioned static evidence. A separate `cursor-native` backend now exists;
+  its local Connect-protocol fixtures do not establish live service compatibility.
 - Linux amd64 has runtime evidence. Cross-builds do not prove Windows/macOS
   runtime support; macOS desktop automation is not implemented.
 - Native API/GitHub coverage is primarily fixtures. Desktop tests use injected
@@ -231,6 +232,16 @@ substitute for tests or a declaration of production readiness.
   sanitize external control sequences and keep emoji graphemes intact.
 - Keep command parsing, completion and help synchronized. New config options
   require defaults/validation, editor exposure, docs and example-file updates.
+
+## Desktop startup and Cursor-native updates (2026-10-18)
+
+The optional desktop module opens a project/repository chooser when neither
+`--root` nor `--project` is supplied. Explicit selectors bypass it. The chooser
+loads the registry before acquiring a workspace; failed opens remain retryable.
+CLI/TUI startup defaults are unchanged. Cursor-native exposes attached skill/viewer
+callbacks over its MCP bridge, coalesces reasoning activity and separates model
+step/tool budgets. Live service compatibility remains unverified; see the current
+build evidence for fixture coverage and search compatibility limits.
 
 ## Build, test and render evidence
 

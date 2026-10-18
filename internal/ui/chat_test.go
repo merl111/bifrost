@@ -325,3 +325,24 @@ func writeTestSSE(w http.ResponseWriter, data string) {
 		flusher.Flush()
 	}
 }
+
+func TestNormalizedCursorEventsKeepTUIRepliesAndActivity(t *testing.T) {
+	m := New(t.TempDir())
+	for _, ev := range []ChatEvent{
+		{Kind: "user", Text: "Explain the flow"},
+		{Kind: "thinking", ID: "thinking-1", Text: "Read "},
+		{Kind: "thinking", ID: "thinking-1", Text: "Read the entry point."},
+		{Kind: "delta", Text: "I will inspect it."},
+		{Kind: "tool", ID: "read-1", Text: "Running · read · main.go"},
+		{Kind: "tool", ID: "read-1", Text: "Completed · read · main.go", Detail: "package main"},
+		{Kind: "delta", Text: "Here is the explanation."},
+	} {
+		m.appendChatEvent(ev)
+	}
+	if len(m.chatLines) != 5 {
+		t.Fatalf("duplicated normalized activity: %+v", m.chatLines)
+	}
+	if m.chatLines[1].text != "Read the entry point." || m.chatLines[2].text != "I will inspect it." || m.chatLines[4].text != "Here is the explanation." {
+		t.Fatalf("lost streamed text: %+v", m.chatLines)
+	}
+}

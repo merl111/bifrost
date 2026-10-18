@@ -70,7 +70,7 @@ func nativeCursorTurn(store *accounts.Store, a accounts.Account) func(context.Co
 		if len(saved.Checkpoint) == 0 && len(cfg.History) > 0 {
 			input = cursorTranscript(cfg.History, prompt)
 		}
-		var text strings.Builder
+		events := cursorEventForwarder{emit: cfg.OnEvent}
 		out, err := (cursorclient.Client{AccessToken: access, TeamID: cursorTeam(current)}).Run(ctx, cursorclient.RunInput{
 			Model:          cfg.ModelName,
 			Prompt:         input,
@@ -83,37 +83,23 @@ func nativeCursorTurn(store *accounts.Store, a accounts.Account) func(context.Co
 			AllowWrite:     cfg.WriteEnabled,
 			AllowExec:      cfg.ExecEnabled,
 			MaxOutput:      cfg.MaxOutputBytes,
-			MaxTools:       cfg.MaxSteps,
-			OnEvent: func(ev cursorclient.Event) {
-				if cfg.OnEvent == nil {
-					return
-				}
-				kind := ev.Kind
-				if kind == "delta" {
-					text.WriteString(ev.Text)
-					cfg.OnEvent(agent.Event{Kind: "delta", Text: ev.Text})
-					return
-				}
-				cfg.OnEvent(agent.Event{Kind: kind, Text: ev.Text, ID: ev.ID, Detail: ev.Detail})
-			},
+			MaxTools:       min(200, max(1, cfg.MaxSteps)*8),
+			MaxSteps:       cfg.MaxSteps,
+			Tools:          cursorBridgeTools(cfg.ExtraTools),
+			OnEvent:        events.event,
 		})
 		result.Text = out.Text
-		if result.Text == "" {
-			result.Text = text.String()
-		}
 		result.Usage.InputTokens += out.InputTokens
 		result.Usage.OutputTokens += out.OutputTokens
 		result.Usage.TotalTokens += out.InputTokens + out.OutputTokens
-		result.Steps = 1
+		result.Steps = max(1, out.Steps)
 		result.ToolCalls += out.ToolCalls
 		if err != nil {
 			return result, err
 		}
 		opaque, _ := json.Marshal(cursorNativeContinuation{Backend: string(accounts.KindCursorNative), Account: accountBinding(a), ConversationID: out.ConversationID, Checkpoint: out.Checkpoint, Blobs: cursorBlobRecords(out.Blobs)})
 		result.Messages = append(append([]provider.Message(nil), cfg.History...), provider.Message{Role: provider.RoleUser, Content: prompt}, provider.Message{Role: provider.RoleAssistant, Content: result.Text, Opaque: opaque})
-		if cfg.OnEvent != nil {
-			cfg.OnEvent(agent.Event{Kind: "final", Text: result.Text})
-		}
+		events.finish(result.Text)
 		return result, nil
 	}
 }
@@ -206,9 +192,6 @@ func (a backendFiles) List(ctx context.Context, path string) ([]workspace.Entry,
 }
 func (a backendFiles) Read(ctx context.Context, path string) (string, workspace.Revision, error) {
 	return a.backend.Read(ctx, path)
-}
-func (a backendFiles) Search(ctx context.Context, query string) (workspace.SearchResult, error) {
-	return a.backend.Search(ctx, query)
 }
 func (a backendFiles) Write(ctx context.Context, path string, expected *workspace.Revision, content string) (workspace.Change, error) {
 	return a.backend.Write(ctx, path, expected, content)

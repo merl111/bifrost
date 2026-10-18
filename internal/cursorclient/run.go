@@ -33,6 +33,8 @@ type RunInput struct {
 	AllowExec      bool
 	MaxOutput      int
 	MaxTools       int
+	MaxSteps       int
+	Tools          []Tool
 	OnEvent        func(Event)
 }
 
@@ -45,10 +47,13 @@ type RunOutput struct {
 	InputTokens    int
 	OutputTokens   int
 	ToolCalls      int
+	Steps          int
 }
 
 // Run sends one user message and serves local tool calls until the turn ends.
 func (c Client) Run(ctx context.Context, in RunInput) (RunOutput, error) {
+	ctx, stop := context.WithCancel(ctx)
+	defer stop()
 	if strings.TrimSpace(c.AccessToken) == "" {
 		return RunOutput{}, errors.New("cursor access token is required")
 	}
@@ -57,6 +62,9 @@ func (c Client) Run(ctx context.Context, in RunInput) (RunOutput, error) {
 	}
 	if in.MaxTools <= 0 || in.MaxTools > 200 {
 		in.MaxTools = 64
+	}
+	if in.MaxSteps <= 0 || in.MaxSteps > 100 {
+		in.MaxSteps = 64
 	}
 	conv := in.ConversationID
 	if conv == "" {
@@ -82,7 +90,7 @@ func (c Client) Run(ctx context.Context, in RunInput) (RunOutput, error) {
 	if err := c.append(ctx, requestID, 0, runMsg); err != nil {
 		return RunOutput{}, err
 	}
-	env := &ToolEnv{Root: in.Root, Files: in.Files, AllowWrite: in.AllowWrite, AllowExec: in.AllowExec, MaxOutput: in.MaxOutput}
+	env := &ToolEnv{Root: in.Root, Files: in.Files, AllowWrite: in.AllowWrite, AllowExec: in.AllowExec, MaxOutput: in.MaxOutput, Tools: in.Tools}
 	env.seedBlobs(in.Blobs)
 	var (
 		mu         sync.Mutex
@@ -122,6 +130,8 @@ func (c Client) Run(ctx context.Context, in RunInput) (RunOutput, error) {
 		}
 	}()
 	ended := false
+	var events eventStream
+	budget := runBudget{maxSteps: in.MaxSteps, maxTools: in.MaxTools, steps: make(map[int64]bool)}
 	for item := range incomingC {
 		if item.err != nil {
 			if errors.Is(item.err, io.EOF) || errors.Is(item.err, context.Canceled) && ended {
@@ -134,6 +144,16 @@ func (c Client) Run(ctx context.Context, in RunInput) (RunOutput, error) {
 			saveBlobs()
 			return out, item.err
 		}
+		req := item.msg.Message("exec_server_message")
+		counted := executionCounts(req)
+		if err := budget.check(item.msg, &out); err != nil {
+			out.Text = text.String()
+			saveBlobs()
+			return out, err
+		}
+		if item.msg.Message("interaction_update").Oneof("message") == "thinking_completed" {
+			events.inThinking = false
+		}
 		toolCtx, cancel := context.WithCancel(ctx)
 		mu.Lock()
 		toolCancel = cancel
@@ -143,8 +163,10 @@ func (c Client) Run(ctx context.Context, in RunInput) (RunOutput, error) {
 		if len(checkpoint) > 0 {
 			out.Checkpoint = checkpoint
 		}
-		if ev.Kind == "delta" {
-			text.WriteString(ev.Text)
+		if err := events.appendText(&text, ev, counted); err != nil {
+			out.Text = text.String()
+			saveBlobs()
+			return out, err
 		}
 		if ev.Kind == "usage" {
 			out.InputTokens += ev.InputTokens
@@ -164,22 +186,17 @@ func (c Client) Run(ctx context.Context, in RunInput) (RunOutput, error) {
 				seq++
 			}
 		}
-		if executed {
+		if executed && counted {
 			out.ToolCalls++
 			if ev.Kind == "" {
-				ev = Event{Kind: "tool", Text: item.msg.Message("exec_server_message").Oneof("message")}
+				ev = executionActivity(req, replies)
 			}
 		}
 		if in.OnEvent != nil && ev.Kind != "" && ev.Kind != "usage" {
-			in.OnEvent(ev)
+			in.OnEvent(events.normalize(ev))
 		}
 		if turnEnded {
 			ended = true
-		}
-		if out.ToolCalls > in.MaxTools {
-			out.Text = text.String()
-			saveBlobs()
-			return out, errors.New("cursor tool-call budget exceeded")
 		}
 	}
 	out.Text = text.String()
@@ -252,6 +269,9 @@ func buildRun(in RunInput, conversationID, runID string) (*Value, error) {
 	run.Set("action", action)
 	run.Set("model_details", details)
 	run.Set("requested_model", requested)
+	toolDefs, _ := New("McpTools")
+	toolDefs.Set("mcp_tools", bridgeDefinitions(in.Tools))
+	run.Set("mcp_tools", toolDefs)
 	run.Set("conversation_id", conversationID)
 	run.Set("run_id", runID)
 	return wrapClient("run_request", run), nil

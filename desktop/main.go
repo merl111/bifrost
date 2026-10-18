@@ -47,6 +47,20 @@ All TUI command families are available. See docs/desktop.md for coverage and pla
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
+	choose, err := cli.DesktopNeedsProjectChoice(args)
+	if err != nil {
+		return err
+	}
+	app, err := cui.New()
+	if err != nil {
+		return err
+	}
+	defer app.Close()
+	app.Theme(cui.Dark)
+	initialTextScale(app)
+	if choose {
+		return startWithProjectChoice(ctx, app, args)
+	}
 	ws, err := cli.OpenDesktopWorkspace(ctx, args, os.Stderr)
 	if err != nil {
 		if err == flag.ErrHelp {
@@ -59,27 +73,29 @@ All TUI command families are available. See docs/desktop.md for coverage and pla
 	if err != nil {
 		return err
 	}
-	app, err := cui.New()
-	if err != nil {
-		return err
-	}
-	defer app.Close()
-	app.Theme(cui.Dark)
-	width, height := initialSize()
-	g := newDesktop(ctx, app, ws, width, height)
-	if scale, e := strconv.ParseFloat(os.Getenv("BIFROST_DESKTOP_TEXT_SCALE"), 64); e == nil {
-		if app.TextScale(scale) {
-			g.textScale = scale
-		}
-	}
-	g.applySnapshot(snapshot)
-	g.loadDirectory(".")
-	g.window.Show()
-	g.composer.Focus()
+	g := showDesktop(ctx, app, ws, snapshot)
 	err = app.Run()
 	g.cancel()
 	g.workers.Wait()
 	return err
+}
+
+func showDesktop(ctx context.Context, app *cui.App, ws *cli.DesktopWorkspace, snapshot cli.DesktopSnapshot) *desktop {
+	width, height := initialSize()
+	g := newDesktop(ctx, app, ws, width, height)
+	g.textScale = initialTextScale(app)
+	g.applySnapshot(snapshot)
+	g.loadDirectory(".")
+	g.window.Show()
+	g.composer.Focus()
+	return g
+}
+
+func initialTextScale(app *cui.App) float64 {
+	if scale, err := strconv.ParseFloat(os.Getenv("BIFROST_DESKTOP_TEXT_SCALE"), 64); err == nil && app.TextScale(scale) {
+		return scale
+	}
+	return 1
 }
 
 func initialSize() (int, int) {

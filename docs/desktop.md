@@ -15,10 +15,23 @@ development libraries. On Debian/Ubuntu the native development packages are
 
 ```sh
 make desktop
+./bin/bifrost-desktop
 ./bin/bifrost-desktop --root /path/to/repository
 ./bin/bifrost-desktop --project myapp --repository api --profile work
 ./bin/bifrost-desktop --root /path/to/repository --state-dir /tmp/bifrost-gui-state
 ```
+
+Starting without `--root` or `--project` opens the project chooser before acquiring
+any workspace. Search saved projects, choose a linked repository, then open it;
+Enter in search opens the matching selection. Down moves focus to the project
+list. **Open a folder** uses the native folder dialog; **Use current folder** is
+an explicit choice. Configured default projects are selected, never opened without
+a choice. Repository mappings follow `--environment`. Missing mappings and empty
+projects are explained; failed opens leave the chooser available for retry. This
+startup behavior is desktop-only; CLI and TUI root selection are unchanged.
+
+![Choose a project](images/desktop-project-picker.png)
+![Project chooser at 640 × 560, with its primary action outside the scrolling content](images/desktop-project-picker-narrow.png)
 
 For a different CUI checkout, build its `cui` CMake target, then run
 `go mod edit -replace=cui.local/cui=/absolute/path/to/cui/bindings/go` inside
@@ -330,3 +343,31 @@ They require Bifrost's native tool loop. Vendor clients do not expose these tool
 The skill loading design follows the primary [Agent Skills integration guidance](https://github.com/agentskills/agentskills/blob/main/docs/client-implementation/adding-skills-support.mdx).
 Bundled guidance is original Bifrost content; no Ripwire implementation or upstream
 skill files are copied, and no extra runtime dependency is installed.
+
+## Cursor-native event and walkthrough fixes — 18 October 2026
+
+Cursor-native now advertises the attached Bifrost skill discovery and viewer tools
+through its MCP protocol bridge, including `viewer_flow`. Protocol arguments are
+decoded from protobuf JSON values, including nested steps, lists, booleans and
+nulls. Existing rooted validation and callback permissions still apply. This does
+not enable arbitrary MCP servers or vendor-CLI tools; configured browser/SSH/MCP
+runtime restrictions remain as documented.
+
+Provider-supplied reasoning fragments update one activity entry per block. Tool
+activity carries call identity, a useful name/path and bounded details. The final
+aggregate is not replayed over text already streamed. Model steps and local tool
+calls have separate bounds (up to eight tool calls per configured step, capped at
+200); context/precheck negotiation does not consume the tool budget. Limits are
+checked before executing the next tool.
+
+Cursor search now uses Go's bounded RE2 engine instead of the shared literal
+search API. It supports case flags, scoped paths, pagination, common file types,
+and `**` path globs without shell permission. Traversal skips symlinks and common
+metadata/cache trees, with file/byte/result bounds. This is not complete ripgrep
+compatibility: PCRE lookaround/backreferences, full type aliases, ignore-file
+semantics, context-line and sort options remain outside this increment.
+
+Design references: [GNOME patterns](https://developer.gnome.org/hig/patterns.html)
+for selection/search and native file dialogs; [Go regexp](https://pkg.go.dev/regexp)
+for regular-expression behavior. GTK captures and protocol fixtures are evidence
+for this build; live Cursor service acceptance still requires separate testing.

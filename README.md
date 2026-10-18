@@ -51,8 +51,14 @@ packages are `libgtk-4-dev` and `libxext-dev`.
 
 ```sh
 make desktop
-./bin/bifrost-desktop --root /path/to/repository
+./bin/bifrost-desktop
 ```
+
+Startup opens a searchable **project chooser**. Select a saved project and one of
+its linked repositories, or choose **Open a folder**. An explicit
+`--root /path/to/repository` or `--project NAME` opens that workspace directly.
+
+![Native project chooser with linked repository selection](docs/images/desktop-project-picker.png)
 
 Open **Accounts** to connect a provider. Without an account, files, editing,
 review and the local shell remain available. Existing CLI configuration and

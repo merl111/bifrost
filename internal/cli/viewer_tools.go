@@ -19,7 +19,7 @@ import (
 // Bifrost VIEWER pane so it can open files, highlight requested functions or
 // line ranges, show diffs, and walk the user through multi-step code flows.
 func attachWorkspaceViewerTools(cfg *agent.Config, emit func(ui.ChatEvent)) {
-	if cfg == nil || emit == nil || cfg.RunExternal != nil {
+	if cfg == nil || emit == nil || (cfg.RunExternal != nil && !cfg.ExternalToolBridge) {
 		return
 	}
 	for _, t := range cfg.ExtraTools {

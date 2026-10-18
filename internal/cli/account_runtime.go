@@ -88,6 +88,7 @@ func chatGPTTokenSource(store *accounts.Store, bound accounts.Account) func(cont
 // bindRuntimeProvider keeps subscription credentials out of generic API-key
 // fallbacks and pins a turn to the selected account registration.
 func bindRuntimeProvider(opts options, cfg *agent.Config, p config.ProviderSettings) (string, error) {
+	cfg.ExternalToolBridge = false
 	if p.Account == "" {
 		if p.Kind == "chatgpt" || p.Kind == "cursor" || p.Kind == "claude" {
 			return "", errors.New("select a saved subscription account with --profile or --account")
@@ -114,6 +115,7 @@ func bindRuntimeProvider(opts options, cfg *agent.Config, p config.ProviderSetti
 	}
 	if p.Kind == "cursor-native" {
 		cfg.RunExternal = nativeCursorTurn(store, a)
+		cfg.ExternalToolBridge = true
 		return accountBinding(a), nil
 	}
 	if p.Kind == "cursor" || p.Kind == "claude" {

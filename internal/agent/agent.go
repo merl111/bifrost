@@ -57,6 +57,8 @@ type Config struct {
 	// RunExternal delegates a whole turn to a vendor's installed agent. It
 	// receives this turn's root, permissions and history, including child roots.
 	RunExternal func(context.Context, Config, string) (Result, error)
+	// ExternalToolBridge allows an external protocol adapter to call ExtraTools.
+	ExternalToolBridge bool
 
 	Backend          environment.Backend
 	Provider         provider.Client

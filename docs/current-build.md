@@ -1,4 +1,53 @@
-# Current implementation evidence — 15 October 2026
+# Current implementation evidence — 18 October 2026
+
+## Startup project choice and Cursor-native fixes — 18 October 2026
+
+Starting `bifrost-desktop` without an explicit root/project now opens a native
+project chooser. It searches the saved registry, retains every project's linked
+repositories, selects configured defaults without silently opening them, and offers
+native folder selection/current-directory opening. Registry and workspace loading
+run off the UI thread; failed opens return to the chooser. Explicit selectors and
+CLI/TUI startup behavior are preserved. The Open action stays in a fixed footer at
+640×560; normal and narrow GTK captures are in the README and desktop guide.
+
+The screenshot-reported Cursor-native issues had distinct causes: model steps
+were used as a raw tool-call cap, regular-expression patterns were sent to a
+literal search API, thinking fragments had no stable identity, the aggregate final
+replayed all previous streamed text, and external-runner filtering prevented
+viewer/skill tool attachment. These are corrected at the adapter boundary. The
+MCP bridge now accepts nested protobuf JSON arguments for existing callbacks.
+Search uses bounded rooted regex/glob traversal; stream readers are cancelled on
+an early return and limits are checked before the next local execution.
+
+Verification (isolated temporary projects/state; no paid inference):
+
+- Full root race suite (`go test -race -count=1 -timeout=90s ./...`) and desktop
+  race tests pass. Root/desktop vet and both builds pass, including CGO-disabled TUI.
+- Protocol regression fixtures cover regex/glob/file scoping, escaping paths,
+  invalid patterns, cancellation, binary skipping, pre-execution budgets,
+  MCP argument round trips, tool errors and walkthrough callback attachment.
+- Shared adapter and TUI regressions verify streamed replies are not replayed and
+  stable activity updates retain each reply. The real TUI binary starts/resizes at
+  80×24, 120×36, 160×48 and 60×20, opens its command palette and exits cleanly.
+  Opt-in PTY tests, including full-screen Vim, pass.
+- The complete CUI workflow smoke passes (53.85 seconds), including parallel chats,
+  editor/review, terminals, settings, catalogs and guided walkthrough controls.
+  A separate chooser test checks project/repository selection, filtering, empty
+  projects, folder opening and normal/narrow rendering. Actual X11 keyboard input
+  exercises recovery from a missing saved path, startup search/Enter, workspace
+  handoff, tab shortcuts and WM close.
+- Native captures are Linux GTK/Xvfb evidence. Existing non-failing GTK focus and
+  layout warnings remain; no claim of macOS/Windows runtime qualification.
+- Structural quality remains non-clean: the pre-commit delta reports three gating
+  findings (Cursor Run complexity/length and viewer-tool churn), five minor findings
+  and 31 new-symbol findings, including test/callback detection and new search/
+  protocol helper complexity. Functional checks do not erase these findings.
+
+Cursor service acceptance is still unverified live. Regex search is RE2, not full
+ripgrep/PCRE compatibility; context-line/sort options, ignore rules and the full
+file-type registry remain outside this increment. Arbitrary MCP resources/servers,
+Cursor-native desktop/browser/SSH integration, and vendor-CLI bridges are not
+advertised as implemented by these changes.
 
 ## Parallel desktop conversations — 18 October 2026
 
@@ -322,7 +371,7 @@ Review found and corrected a queued-task cancellation/shutdown race, a daemon st
 - MCP OAuth login UI and TUI elicitation forms remain pending. SDK callback APIs exist; an uncertain mutating tool is not blindly replayed to continue it.
 - LSP is available through explicit CLI/library calls, not editor diagnostics overlays. Hunk-level staging, background PTY reattachment, inline pixel graphics, and the full approval UI remain roadmap work.
 - Cursor/Claude subscription turns use installed vendor clients and their tools; they do not expose Bifrost's native browser/desktop/MCP/SSH tool loop. Cursor multi-account isolation is supported on Linux and explicitly unavailable on macOS because of the vendor client's shared keychain namespace. Live vendor compatibility remains unverified.
-- Native Cursor (`account login cursor-native`) is a separate account from `cursor-agent`. It speaks the Cursor 3.23.23 Connect agent protocol over HTTP/1 RunSSE, sends the CLI client version and type on each request, and executes rooted file, search, shell, shell-stream, background-shell, git-diff, and HTTP fetch requests when those permissions are enabled. Approval prechecks follow the same permissions. Diagnostics, MCP, hooks, computer use, screen recording, and sub-agents return a completed protocol result that names the missing capability. A new turn sends an empty conversation state. A resumed turn sends the saved checkpoint together with the conversation blobs Cursor stored on the client. A checkpoint whose blobs were never stored starts a fresh Cursor conversation from the readable transcript. Project instructions travel in the user message; the team-only system-prompt option is left unset. A request for workspace context is answered with the workspace path, shell, and git branch when one is visible. A stream failure includes the server's error detail when Cursor sends one. Login, refresh, and model discovery are covered by a local fake server. Live Cursor subscription acceptance was not tested.
+- Native Cursor (`account login cursor-native`) is a separate account from `cursor-agent`. It speaks the Cursor 3.23.23 Connect agent protocol over HTTP/1 RunSSE, sends the CLI client version and type on each request, and executes rooted file, search, shell, shell-stream, background-shell, git-diff, and HTTP fetch requests when those permissions are enabled. Approval prechecks follow the same permissions. Attached Bifrost viewer/skill tools are now available through the MCP bridge described above. Diagnostics, unrelated MCP servers/resources, hooks, computer use, screen recording, and sub-agents return a completed protocol result that names the missing capability. A new turn sends an empty conversation state. A resumed turn sends the saved checkpoint together with the conversation blobs Cursor stored on the client. A checkpoint whose blobs were never stored starts a fresh Cursor conversation from the readable transcript. Project instructions travel in the user message; the team-only system-prompt option is left unset. A request for workspace context is answered with the workspace path, shell, and git branch when one is visible. A stream failure includes the server's error detail when Cursor sends one. Login, refresh, and model discovery are covered by a local fake server. Live Cursor subscription acceptance was not tested.
 - Compaction is explicit and summary-driven. No automatic provider retries are performed. Session snapshots resume from the last complete turn, not an arbitrary interrupted tool instruction.
 - Worktrees start from a committed ref. Dirty parent edits are not copied or automatically merged. Children retain separate results and worktree paths for review.
 - Task aggregate events are a latest-window view; stable replay cursors are per-run. State/artifact lifecycle quotas and garbage collection need further work for long-running installations.

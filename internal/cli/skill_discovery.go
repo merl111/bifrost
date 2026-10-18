@@ -38,7 +38,7 @@ func attachSkillDiscovery(cfg *agent.Config, available []skill.Skill, opts optio
 	}
 	// Vendor clients don't expose Bifrost's native tools. Give usable guidance,
 	// without advertising tools they cannot call or silently activating skills.
-	if cfg.RunExternal != nil {
+	if cfg.RunExternal != nil && !cfg.ExternalToolBridge {
 		catalog.WriteString("Use your own skill/file tools to inspect relevant installed skill sources when accessible. Bifrost's skills_search, skills_activate and viewer tools are unavailable in this vendor backend. Built-in source identifiers are not filesystem paths.\n")
 		cfg.Instructions += catalog.String()
 		return

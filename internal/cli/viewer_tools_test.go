@@ -41,3 +41,30 @@ func TestViewerFlowToolRejectsInvalidAndEmitsMixedSteps(t *testing.T) {
 	}
 	t.Fatal("viewer_flow missing")
 }
+
+func TestCursorNativeExposesViewerBridgeOnlyWhenSupported(t *testing.T) {
+	for _, bridge := range []bool{false, true} {
+		var events []ui.ChatEvent
+		cfg := agent.Config{ExternalToolBridge: bridge, RunExternal: func(context.Context, agent.Config, string) (agent.Result, error) { return agent.Result{}, nil }}
+		attachWorkspaceViewerTools(&cfg, func(ev ui.ChatEvent) { events = append(events, ev) })
+		tools := cursorBridgeTools(cfg.ExtraTools)
+		if !bridge {
+			if len(tools) != 0 {
+				t.Fatal("exposed tools to vendor CLI")
+			}
+			continue
+		}
+		found := false
+		for _, tool := range tools {
+			if tool.Name == "viewer_flow" {
+				found = true
+				if _, err := tool.Call(context.Background(), json.RawMessage(`{"title":"Flow","steps":[{"kind":"concept","explanation":"Entry point"}]}`)); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		if !found || len(events) != 1 {
+			t.Fatal("Cursor-native cannot open walkthrough")
+		}
+	}
+}

@@ -61,7 +61,10 @@ func (e *ToolEnv) canvasDiagnostics(req, args *Value) *Value {
 	})
 }
 
-func (e *ToolEnv) mcpCall(req, args *Value) *Value {
+func (e *ToolEnv) mcpCall(ctx context.Context, req, args *Value) *Value {
+	if reply := e.callBridge(ctx, req, args); reply != nil {
+		return reply
+	}
 	name := args.String("server_identifier")
 	if name == "" {
 		name = args.String("provider_identifier")
@@ -85,7 +88,17 @@ func (e *ToolEnv) readMcpResource(req, args *Value) *Value {
 }
 
 func (e *ToolEnv) mcpState(req *Value) *Value {
-	return oneofReply(req, "mcp_state_exec_result", "McpStateExecResult", "success", "McpStateSuccess", nil)
+	return oneofReply(req, "mcp_state_exec_result", "McpStateExecResult", "success", "McpStateSuccess", func(v *Value) {
+		if len(e.Tools) == 0 {
+			return
+		}
+		server, _ := New("McpStateServer")
+		server.Set("server_name", "Bifrost")
+		server.Set("server_identifier", "bifrost")
+		server.Set("status", "connected")
+		server.Set("tools", bridgeDefinitions(e.Tools))
+		v.Set("servers", []*Value{server})
+	})
 }
 
 func (e *ToolEnv) fetch(ctx context.Context, req, args *Value) *Value {

@@ -105,12 +105,14 @@ func NewTaskRunner(options TaskRunnerConfig) tasks.Runner {
 			// essential when a native parent delegates to Claude/Cursor or vice
 			// versa; root, permissions and budgets remain those of the child.
 			cfg.Provider, cfg.RunExternal = nil, nil
+			cfg.ExternalToolBridge = false
 			if options.ResolveAgent != nil {
 				resolved, err := options.ResolveAgent(ctx, spec.Model, spec.Profile)
 				if err != nil {
 					return tasks.Result{}, fmt.Errorf("task runner: resolve agent profile: %w", err)
 				}
 				cfg.Provider, cfg.RunExternal = resolved.Provider, resolved.RunExternal
+				cfg.ExternalToolBridge = resolved.ExternalToolBridge
 				cfg.ModelName, cfg.ProfileName = resolved.ModelName, spec.Profile
 			} else {
 				if options.ResolveProvider == nil {

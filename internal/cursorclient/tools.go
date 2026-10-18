@@ -20,7 +20,6 @@ import (
 type Files interface {
 	List(context.Context, string) ([]workspace.Entry, error)
 	Read(context.Context, string) (string, workspace.Revision, error)
-	Search(context.Context, string) (workspace.SearchResult, error)
 	Write(context.Context, string, *workspace.Revision, string) (workspace.Change, error)
 	Exec(context.Context, []string, string, int) (process.Result, error)
 }
@@ -37,6 +36,7 @@ type ToolEnv struct {
 	AllowWrite bool
 	AllowExec  bool
 	MaxOutput  int
+	Tools      []Tool
 	blobs      map[string][]byte
 	seen       map[string]struct{}
 	shellMu    sync.Mutex
@@ -138,7 +138,7 @@ func (e *ToolEnv) exec(ctx context.Context, req *Value) *Value {
 	case "canvas_diagnostics_args":
 		return e.canvasDiagnostics(req, args)
 	case "mcp_args":
-		return e.mcpCall(req, args)
+		return e.mcpCall(ctx, req, args)
 	case "list_mcp_resources_exec_args":
 		return e.listMcpResources(req)
 	case "read_mcp_resource_exec_args":
@@ -230,6 +230,7 @@ func (e *ToolEnv) requestContext(ctx context.Context, req, args *Value) *Value {
 		return denyExec(req, "request context is unavailable")
 	}
 	contextMsg.Set("env", envMsg)
+	contextMsg.Set("tools", bridgeDefinitions(e.Tools))
 	if repo := e.gitRepo(ctx); repo != nil {
 		contextMsg.Set("git_repos", []*Value{repo})
 	}
@@ -635,31 +636,13 @@ func (e *ToolEnv) grep(ctx context.Context, req, args *Value) *Value {
 	if pattern == "" {
 		return grepError(req, "pattern is empty")
 	}
-	res, err := e.Files.Search(ctx, pattern)
+	res, err := e.search(ctx, args)
 	if err != nil {
 		return grepError(req, err.Error())
 	}
-	limit := int(args.Int("head_limit"))
-	if limit <= 0 || limit > 200 {
-		limit = 100
-	}
-	glob := args.String("glob")
-	prefix, _ := relativePath(e.Root, args.String("path"))
 	files := map[string]*Value{}
 	var total int
 	for _, match := range res.Matches {
-		if prefix != "" && prefix != "." && match.Path != prefix && !strings.HasPrefix(match.Path, prefix+"/") {
-			continue
-		}
-		if glob != "" {
-			ok, _ := filepath.Match(glob, filepath.Base(match.Path))
-			if !ok {
-				continue
-			}
-		}
-		if total >= limit {
-			break
-		}
 		total++
 		file := files[match.Path]
 		if file == nil {
@@ -716,7 +699,7 @@ func (e *ToolEnv) grep(ctx context.Context, req, args *Value) *Value {
 }
 
 func (e *ToolEnv) piGrep(ctx context.Context, req, args *Value) *Value {
-	res, err := e.Files.Search(ctx, args.String("pattern"))
+	res, err := e.search(ctx, args)
 	if err != nil {
 		return piResult(req, false, err.Error())
 	}
@@ -740,7 +723,7 @@ func (e *ToolEnv) ls(ctx context.Context, req, args *Value) *Value {
 		return lsOutcome(req, "error", rel, err.Error())
 	}
 	node, _ := New("LsDirectoryTreeNode")
-	node.Set("abs_path", rel)
+	node.Set("abs_path", filepath.Join(e.Root, rel))
 	node.Set("children_were_processed", true)
 	var files []*Value
 	var dirs []*Value
@@ -750,7 +733,7 @@ func (e *ToolEnv) ls(ctx context.Context, req, args *Value) *Value {
 		}
 		if entry.IsDir {
 			child, _ := New("LsDirectoryTreeNode")
-			child.Set("abs_path", entry.Path)
+			child.Set("abs_path", filepath.Join(e.Root, entry.Path))
 			dirs = append(dirs, child)
 			continue
 		}
@@ -813,33 +796,29 @@ func (e *ToolEnv) findText(ctx context.Context, args *Value) (string, error) {
 	}
 	var b strings.Builder
 	var n int
-	var walk func(string, int) error
-	walk = func(dir string, depth int) error {
-		if n >= limit || depth > 8 || ctx.Err() != nil {
-			return ctx.Err()
-		}
-		entries, err := e.Files.List(ctx, dir)
-		if err != nil {
-			return err
-		}
-		for _, entry := range entries {
-			if n >= limit {
-				break
-			}
-			if pattern == "" || strings.Contains(entry.Name, pattern) {
-				fmt.Fprintf(&b, "%s\n", entry.Path)
-				n++
-			}
-			if entry.IsDir {
-				if err := walk(entry.Path, depth+1); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
-	}
-	if err := walk(rel, 0); err != nil && !errors.Is(err, context.Canceled) {
+	if _, err := globMatch(pattern, ""); err != nil {
 		return "", err
+	}
+	truncated, err := e.walkFiles(ctx, rel, func(entry workspace.Entry) (bool, error) {
+		name, _ := filepath.Rel(rel, entry.Path)
+		match, err := globMatch(pattern, filepath.ToSlash(name))
+		if err != nil {
+			return false, err
+		}
+		if match {
+			if n >= limit {
+				return false, nil
+			}
+			fmt.Fprintln(&b, entry.Path)
+			n++
+		}
+		return true, nil
+	})
+	if err != nil {
+		return "", err
+	}
+	if truncated {
+		b.WriteString("[results truncated]\n")
 	}
 	return b.String(), nil
 }
@@ -939,9 +918,9 @@ func interactionEvent(msg *Value) (Event, bool) {
 		end := msg.Message("turn_ended")
 		return Event{Kind: "usage", InputTokens: int(end.Int("input_tokens")), OutputTokens: int(end.Int("output_tokens"))}, true
 	case "tool_call_started":
-		return Event{Kind: "tool", Text: "tool started"}, false
+		return toolInteraction(msg.Message("tool_call_started"), false), false
 	case "tool_call_completed":
-		return Event{Kind: "tool", Text: "tool completed"}, false
+		return toolInteraction(msg.Message("tool_call_completed"), true), false
 	default:
 		return Event{}, false
 	}

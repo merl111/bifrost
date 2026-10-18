@@ -463,9 +463,6 @@ func (denyFiles) List(context.Context, string) ([]workspace.Entry, error) { retu
 func (denyFiles) Read(context.Context, string) (string, workspace.Revision, error) {
 	return "", "", nil
 }
-func (denyFiles) Search(context.Context, string) (workspace.SearchResult, error) {
-	return workspace.SearchResult{}, nil
-}
 func (denyFiles) Write(context.Context, string, *workspace.Revision, string) (workspace.Change, error) {
 	return workspace.Change{}, nil
 }
@@ -478,9 +475,6 @@ type countingFiles struct{ calls int }
 func (c *countingFiles) List(context.Context, string) ([]workspace.Entry, error) { return nil, nil }
 func (c *countingFiles) Read(context.Context, string) (string, workspace.Revision, error) {
 	return "", "", nil
-}
-func (c *countingFiles) Search(context.Context, string) (workspace.SearchResult, error) {
-	return workspace.SearchResult{}, nil
 }
 func (c *countingFiles) Write(context.Context, string, *workspace.Revision, string) (workspace.Change, error) {
 	return workspace.Change{}, nil
@@ -500,9 +494,6 @@ func (w wsFiles) List(_ context.Context, path string) ([]workspace.Entry, error)
 }
 func (w wsFiles) Read(_ context.Context, path string) (string, workspace.Revision, error) {
 	return w.ws.Read(path)
-}
-func (w wsFiles) Search(ctx context.Context, query string) (workspace.SearchResult, error) {
-	return w.ws.Search(ctx, query)
 }
 func (w wsFiles) Write(_ context.Context, path string, expected *workspace.Revision, content string) (workspace.Change, error) {
 	return w.ws.Write(path, expected, content)

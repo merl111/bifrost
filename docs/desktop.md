@@ -104,6 +104,17 @@ hidden at narrow sizes; their toolbar buttons and keyboard shortcuts reveal them
   toggles context; Ctrl+R loads review; Ctrl+T opens the terminal. Files filter
   within the current directory. Git review is read-only, as in the TUI; existing
   Git mutations remain available through the shared agent tools and CLI.
+- The file explorer sorts folders first and uses original, scalable vector icons
+  for common file types and special names (`.env.example`, `Dockerfile.*`, `go.mod`).
+  It retains full paths in tooltips, highlights the selected file, and keeps root,
+  parent and refresh controls above the scrolling list. Down from the filter focuses
+  the first result; Up/Down/Home/End move between rows, Right opens a folder, Left
+  goes to its parent, and Enter/Space opens the focused entry. Opening a folder
+  clears the previous directory filter. At most 1,000 sorted entries are shown;
+  filtering applies to that loaded directory, not a recursive workspace search.
+  Rows are reused, and directory completions retain stale-request protection.
+  These conventions follow [VS Code's file icon naming precedence](https://code.visualstudio.com/api/extension-guides/file-icon-theme);
+  the artwork is original and no extension or icon font is required.
 - Source editing uses revision-checked saves (Ctrl+S), per-file undo/redo,
   search, optional Vim normal/insert modes, and durable recovery drafts shared
   with the TUI. External editor opens the configured editor in a dedicated PTY.

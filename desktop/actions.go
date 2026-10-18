@@ -311,10 +311,15 @@ func (g *desktop) showError(err error) {
 }
 
 func (g *desktop) loadDirectory(path string) {
+	path = cleanExplorerPath(path)
 	g.dirRequest++
 	request := g.dirRequest
+	g.fileList.SetEnabled(false)
+	g.explorer.count.SetText("Loading directory…")
 	g.work(func(ctx context.Context) func() {
 		entries, err := g.ws.Backend.List(ctx, path)
+		total := len(entries)
+		entries = sortedFiles(entries)
 		if len(entries) > 1000 {
 			entries = entries[:1000]
 		}
@@ -322,15 +327,20 @@ func (g *desktop) loadDirectory(path string) {
 			if request != g.dirRequest {
 				return
 			}
+			g.fileList.SetEnabled(true)
 			if err != nil {
+				g.explorer.count.SetText("Could not load directory · try Refresh")
 				g.showError(err)
 				return
 			}
+			if path != g.cwd && g.filesMode {
+				g.sideSearch.SetText("")
+			}
 			g.cwd, g.files = path, entries
-			g.directory.SetText(shortText(path, 22))
-			g.directory.Tooltip(path)
+			g.explorer.total = total
+			g.updateDirectoryHeader()
 			g.filterNavigation()
-			if len(entries) == 1000 {
+			if total > 1000 {
 				g.status.SetText("Showing the first 1,000 directory entries")
 			}
 		}

@@ -31,7 +31,7 @@ func (g *desktop) filterNavigation() {
 	query := strings.ToLower(strings.TrimSpace(g.sideSearch.Text()))
 	g.visibleSessions = nil
 	g.visibleFiles = nil
-	var titles, names []string
+	var titles []string
 	selected := -1
 	for _, s := range g.sessions {
 		if query != "" && !strings.Contains(strings.ToLower(s.Title), query) {
@@ -47,24 +47,14 @@ func (g *desktop) filterNavigation() {
 		titles = append(titles, compactText(title, 38)+"\n"+sessionSubtitle(s))
 		g.visibleSessions = append(g.visibleSessions, s)
 	}
-	for _, f := range g.files {
-		if query != "" && !strings.Contains(strings.ToLower(f.Name), query) {
-			continue
-		}
-		prefix := "  "
-		if f.IsDir {
-			prefix = "▸  "
-		}
-		names = append(names, shortText(prefix+f.Name, 45))
-		g.visibleFiles = append(g.visibleFiles, f)
-	}
+	g.renderFiles(query)
+
 	g.sessionList.Items(titles)
 	g.sessionList.SetSelected(selected)
-	g.fileList.Items(names)
 	count := len(titles)
 	empty := "No conversations yet"
 	if g.filesMode {
-		count = len(names)
+		count = len(g.visibleFiles)
 		empty = "This directory is empty"
 	}
 	if query != "" {

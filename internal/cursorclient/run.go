@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Event is one normalized update from a Cursor agent turn.
@@ -87,7 +88,8 @@ func (c Client) Run(ctx context.Context, in RunInput) (RunOutput, error) {
 		return RunOutput{}, err
 	}
 	defer stream.Close()
-	if err := c.append(ctx, requestID, 0, runMsg); err != nil {
+	sendMessage := c.runSender(ctx, requestID)
+	if err := sendMessage(runMsg); err != nil {
 		return RunOutput{}, err
 	}
 	env := &ToolEnv{Root: in.Root, Files: in.Files, AllowWrite: in.AllowWrite, AllowExec: in.AllowExec, MaxOutput: in.MaxOutput, Tools: in.Tools}
@@ -95,8 +97,8 @@ func (c Client) Run(ctx context.Context, in RunInput) (RunOutput, error) {
 	var (
 		mu         sync.Mutex
 		toolCancel = func() {}
+		toolID     int64
 		out        RunOutput
-		seq        int64 = 1
 		text       strings.Builder
 	)
 	out.ConversationID = conv
@@ -113,6 +115,13 @@ func (c Client) Run(ctx context.Context, in RunInput) (RunOutput, error) {
 		defer close(incomingC)
 		for {
 			msg, err := stream.Next()
+			if msg != nil && msg.Oneof("message") == "exec_server_control_message" {
+				mu.Lock()
+				if abort := msg.Message("exec_server_control_message").Message("abort"); abort != nil && abort.Int("id") == toolID {
+					toolCancel()
+				}
+				mu.Unlock()
+			}
 			select {
 			case <-ctx.Done():
 				return
@@ -120,12 +129,6 @@ func (c Client) Run(ctx context.Context, in RunInput) (RunOutput, error) {
 			}
 			if err != nil {
 				return
-			}
-			if msg != nil && msg.Oneof("message") == "exec_server_control_message" {
-				mu.Lock()
-				cancel := toolCancel
-				mu.Unlock()
-				cancel()
 			}
 		}
 	}()
@@ -135,9 +138,6 @@ func (c Client) Run(ctx context.Context, in RunInput) (RunOutput, error) {
 	for item := range incomingC {
 		if item.err != nil {
 			if errors.Is(item.err, io.EOF) || errors.Is(item.err, context.Canceled) && ended {
-				break
-			}
-			if errors.Is(item.err, io.EOF) {
 				break
 			}
 			out.Text = text.String()
@@ -157,8 +157,16 @@ func (c Client) Run(ctx context.Context, in RunInput) (RunOutput, error) {
 		toolCtx, cancel := context.WithCancel(ctx)
 		mu.Lock()
 		toolCancel = cancel
+		toolID = req.Int("id")
 		mu.Unlock()
+		finishHeartbeat := executionHeartbeat(toolCtx, req, 3*time.Second, sendMessage, stop)
 		replies, checkpoint, turnEnded, ev, send := env.handle(toolCtx, item.msg)
+		if err := finishHeartbeat(); err != nil {
+			cancel()
+			out.Text = text.String()
+			saveBlobs()
+			return out, err
+		}
 		cancel()
 		if len(checkpoint) > 0 {
 			out.Checkpoint = checkpoint
@@ -172,19 +180,11 @@ func (c Client) Run(ctx context.Context, in RunInput) (RunOutput, error) {
 			out.InputTokens += ev.InputTokens
 			out.OutputTokens += ev.OutputTokens
 		}
-		executed := false
-		for _, reply := range replies {
-			if send && reply != nil && reply.Oneof("message") == "exec_client_message" {
-				executed = true
-			}
-			if send && reply != nil {
-				if err := c.append(ctx, requestID, seq, reply); err != nil {
-					out.Text = text.String()
-					saveBlobs()
-					return out, err
-				}
-				seq++
-			}
+		executed, err := sendExecutionReplies(req, replies, send, sendMessage)
+		if err != nil {
+			out.Text = text.String()
+			saveBlobs()
+			return out, err
 		}
 		if executed && counted {
 			out.ToolCalls++

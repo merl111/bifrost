@@ -224,7 +224,9 @@ func (c Client) append(ctx context.Context, requestID string, seq int64, msg *Va
 		return err
 	}
 	defer res.Body.Close()
-	_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, 1<<20))
+	if _, err := io.Copy(io.Discard, io.LimitReader(res.Body, 1<<20)); err != nil {
+		return err
+	}
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		return fmt.Errorf("cursor BidiAppend returned status %d", res.StatusCode)
 	}

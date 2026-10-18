@@ -11,6 +11,7 @@ import (
 )
 
 type desktop struct {
+	explorer                                                                       fileExplorer
 	editorToolbar, editorSearchRow, editorUndoButton, editorRedoButton             cui.Widget
 	editorMenu                                                                     cui.Menu
 	welcomeCompact                                                                 cui.Widget
@@ -173,26 +174,8 @@ func (g *desktop) buildSidebar() {
 	})
 	g.filesPage = g.sidebar.Box(cui.Vertical, 8)
 	g.filesPage.Expand(true)
-	header := g.filesPage.Box(cui.Horizontal, 6)
-	g.directory = label(header, "/", 10, muted)
-	g.directory.Expand(true)
-	iconButton(header, cui.SymbolUp, "Parent directory", func() { g.loadDirectory(filepath.Dir(g.cwd)) })
-	iconButton(header, cui.SymbolRepeat, "Refresh directory", func() { g.loadDirectory(g.cwd) })
-	g.fileList = g.filesPage.List(nil)
-	style(g.fileList, rail, foreground, 6, false)
-	g.fileList.Expand(true)
-	g.fileList.OnAction(func(w cui.Widget) {
-		i := w.Selected()
-		if i < 0 || i >= len(g.visibleFiles) {
-			return
-		}
-		e := g.visibleFiles[i]
-		if e.IsDir {
-			g.loadDirectory(e.Path)
-		} else {
-			g.loadFile(e.Path)
-		}
-	})
+	g.buildFileExplorer()
+
 	footer := g.sidebar.Box(cui.Vertical, 3)
 	label(footer, "WORKSPACE", 9, muted)
 	for _, dest := range []struct {

@@ -92,6 +92,17 @@ unread result; Stop/Escape affects the selected tab only. Account/model changes
 wait until all turns finish. Vendor CLI adapters retain their per-account lock;
 native API and Cursor-native turns have independent conversation state.
 
+## File explorer
+
+Open **Files** (Ctrl+P) for a compact, folders-first directory browser. Native vector
+icons distinguish source, Markdown, Git, Docker, environment/configuration files,
+images and archives, including names such as `go.mod` and `Dockerfile.gateway`.
+The location header, root/parent buttons, full-path tooltips and selected-file
+highlight keep your place. Filter locally, use Down to enter the results, arrow
+keys to move, and Enter to open. The file list scrolls independently of navigation.
+
+![Native file explorer with file-type icons](docs/images/desktop-file-explorer.png)
+
 ## Step-by-step explanations and reviews
 
 Use `:explain how requests reach the database` in either UI, or click **Understand**

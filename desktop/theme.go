@@ -3,6 +3,7 @@ package main
 import (
 	"bifrost/internal/config"
 	cui "cui.local/cui"
+	"strings"
 )
 
 var widgetStyles = make(map[cui.Widget]cui.WidgetStyle)
@@ -118,6 +119,7 @@ func (g *desktop) applyAppearance(settings config.UISettings) {
 		value.Background, value.Foreground, value.Border = themeColor(value.Background), themeColor(value.Foreground), themeColor(value.Border)
 		widget.SetStyle(&value)
 	}
+	g.renderFiles(strings.ToLower(strings.TrimSpace(g.sideSearch.Text())))
 	g.timeline.SetTheme(chatTheme())
 	g.dirty = true
 }

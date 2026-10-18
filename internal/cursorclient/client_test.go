@@ -251,7 +251,7 @@ func TestRunSSEExecutesAndDenies(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(seqs) != 2 || seqs[0] != 0 || seqs[1] != 1 {
+	if len(seqs) != 3 || seqs[0] != 0 || seqs[1] != 1 || seqs[2] != 2 {
 		t.Fatalf("sequence = %v", seqs)
 	}
 }

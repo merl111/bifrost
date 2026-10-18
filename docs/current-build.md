@@ -1,5 +1,50 @@
 # Current implementation evidence — 18 October 2026
 
+## File explorer and completed-tool stall — 18 October 2026
+
+The native Files sidebar now has folders-first sorting, compact reusable rows,
+original vector type icons, root/parent/refresh controls, a location header,
+full-path/type tooltips, selected-file highlighting, filtering and keyboard row
+navigation. Its scroll area leaves workspace navigation fixed. File names and
+extensions are classified independently of their preserved backend paths. The
+1,000-entry bound and stale directory completion checks remain in place. The
+browser still navigates one directory at a time; it is not an expandable tree.
+Normal, narrow and light native captures were inspected; the README includes the
+new normal capture. No CUI source or TUI presentation changes were required.
+
+The reported explanation stall had a concrete protocol defect: Cursor execution
+results (including shell exit) were sent without the separate `stream_close`
+control message. The installed Cursor 3.23.23 controlled executor explicitly
+sends that marker after results. Bifrost now does likewise for unary and streaming
+executions, sends execution heartbeats every three seconds during local work,
+and serializes all outgoing sequence numbers. Append calls are bounded to 30
+seconds and are not retried after an uncertain outcome. A matching execution ID
+is required for aborts. Response-body errors are propagated rather than ignored.
+
+Verification with temporary state/files and local HTTP fixtures, no paid calls:
+
+- Full root race suite passed. Focused Cursor/CLI/TUI race regressions passed
+  again after the final handshake helper refactor.
+- A server fixture waits for each execution close before issuing its next tool
+  and explanation; the old implementation stalls there. Heartbeat identity,
+  shutdown ordering and cancellation on append failure are covered.
+- Full native CUI workflow passed (53.98 seconds), including parallel chat,
+  walkthrough, editor, terminal, project and marketplace flows. A dedicated
+  explorer native test covers icons, folder/open/parent actions, filter identity,
+  row reuse, normal/narrow and light rendering.
+- Real X11 keyboard input (Ctrl+P, filter, Down, Enter) opens the expected source
+  file and highlights its row; WM close exits cleanly. The rebuilt TUI starts,
+  resizes at 80×24, 120×36, 160×48 and 60×20, opens its command palette and exits.
+- Root/desktop vet and both builds passed; the TUI remains CGO-independent.
+- Ripwire against the preceding commit reports two gating churn findings
+  (`Run`, `buildSidebar`), one minor finding and ten new-symbol findings, mostly
+  integration-test size/complexity and vector artwork length. The gate is not
+  clean; the shared Run function's complexity/length no longer regress.
+
+Live Cursor service acceptance has not been retested. This fixes the reproduced
+execution-stream handshake, not every possible upstream stall. A previously
+stuck process must be stopped/restarted with the rebuilt binary to use the fix.
+
 ## Startup project choice and Cursor-native fixes — 18 October 2026
 
 Starting `bifrost-desktop` without an explicit root/project now opens a native

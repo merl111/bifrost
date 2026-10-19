@@ -33,10 +33,21 @@ Repository windows launched from an AppImage use the original image path, so
 each process owns its extraction/mount lifetime. Unit tests cover ordinary
 binaries, spaces and inherited unrelated AppImage environment variables.
 
-Local TUI packaging smoke passed (120×36, 80×24, 160×48 and 60×20, command palette,
-clean exit). Clean-container and GitHub workflow validation are in progress;
-publication is deferred until they pass. FUSE mounting and real provider/VM
-integrations are outside this packaging check; CI uses AppImage extract-and-run.
+[GitHub validation run 39305762477](https://github.com/merl111/bifrost/actions/runs/39305762477)
+passed both complete race/vet suites, all six native fixtures and both delivered
+artifact smoke tests on Ubuntu 24.04 without system GTK. The static TUI ran in a
+real PTY at 120×36, 80×24, 160×48 and 60×20, opened its command palette and exited
+cleanly. The AppImage passed headless version/help checks and opened/closed both
+the project chooser and an explicit-root workspace from a path containing spaces.
+The same complete Docker build/test/package pipeline also passed locally.
+Checksums passed. FUSE mounting and real provider/VM integrations are outside
+this packaging check; CI uses AppImage extract-and-run.
+
+The bounded structural comparison against the pre-packaging commit `6baa23b`
+reported zero gating findings, three minor chooser/test complexity or verbosity
+increases and four new-symbol entry-point/dead-code findings (the Python smoke
+dispatcher/ctypes structure and registered Go test are exercised). This does not
+clear the older repository-wide structural debt documented below.
 
 ## Custom skill installs and MCP config selection — 19 October 2026
 

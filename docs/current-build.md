@@ -20,7 +20,15 @@ The first clean Ubuntu CI run passed both race/vet suites and the workspace,
 controls and extensions native fixtures, then caught a project chooser height
 overflow (640×588 after requesting 640×560). The chooser now scrolls its outer
 content when theme metrics need more room, keeping its actions reachable; the
-existing narrow-window regression remains unchanged and passed locally.
+existing narrow-window size assertion is preserved and passed locally. The
+capture fixture now allows bounded event-loop ticks for the asynchronous resize
+to settle after a screenshot; both normal and 640×560 captures were inspected.
+The second Ubuntu CI run passed all six native fixtures plus race/vet, then
+caught a lazy Go module missing from the notices collector cache. The collector
+now explicitly downloads pinned modules when their source directory is absent.
+Repository windows launched from an AppImage use the original image path, so
+each process owns its extraction/mount lifetime. Unit tests cover ordinary
+binaries, spaces and inherited unrelated AppImage environment variables.
 
 Local TUI packaging smoke passed (120×36, 80×24, 160×48 and 60×20, command palette,
 clean exit). Clean-container and GitHub workflow validation are in progress;

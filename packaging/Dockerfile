@@ -30,10 +30,11 @@ RUN --mount=type=cache,target=/root/.cache/go-build bash packaging/check.sh
 RUN --mount=type=cache,target=/root/.cache/go-build bash packaging/build.sh /out
 
 # No system GTK, Go, compiler or source checkout: smoke-test the shipped files.
-FROM ubuntu:24.04 AS verified
+FROM ubuntu:24.04 AS smoke-runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates python3 xvfb xauth x11-utils libxtst6 fonts-dejavu-core \
     dbus-x11 libgl1 libegl1 libgl1-mesa-dri && rm -rf /var/lib/apt/lists/*
+FROM smoke-runtime AS verified
 COPY --from=build /out /out
 COPY packaging/smoke.py /smoke.py
 RUN ! ldconfig -p | grep -q libgtk-4

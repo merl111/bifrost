@@ -32,6 +32,11 @@ for directory in ('.', 'desktop'):
         dest = out / 'go' / (module['Path'] + '@' + module['Version'])
         dest.mkdir(parents=True, exist_ok=True)
         (dest / 'module.json').write_text(json.dumps(module, indent=2))
+        if not module.get('Dir'):
+            downloaded = subprocess.check_output(
+                ['go', 'mod', 'download', '-json', module['Path'] + '@' + module['Version']],
+                cwd=directory, text=True)
+            module['Dir'] = json.loads(downloaded)['Dir']
         source = pathlib.Path(module['Dir'])
         for entry in source.iterdir():
             if entry.is_file() and entry.name.upper().startswith(('LICENSE', 'COPYING', 'NOTICE', 'AUTHORS')):

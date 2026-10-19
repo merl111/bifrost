@@ -185,6 +185,7 @@ func (g *desktop) openSelectedRepository() {
 			g.workbenchNotice("Cannot open repository", err)
 			return
 		}
+		executable = desktopLaunchPath(executable, os.Getenv("APPDIR"), os.Getenv("APPIMAGE"))
 		command := exec.Command(executable, args...)
 		if err := command.Start(); err != nil {
 			g.workbenchNotice("Cannot open repository", err)

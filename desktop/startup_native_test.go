@@ -40,6 +40,7 @@ func TestNativeProjectPicker(t *testing.T) {
 	p.window.Show()
 	var failed error
 	phase := 0
+	resizeAttempts := 0
 	app.Every(300, func() {
 		switch phase {
 		case 0:
@@ -82,6 +83,11 @@ func TestNativeProjectPicker(t *testing.T) {
 		case 1:
 			width, height, _ := p.window.Size()
 			if width > 640 || height > 560 {
+				// Captures block the event loop; allow the X11 configure event to arrive.
+				resizeAttempts++
+				if resizeAttempts < 10 {
+					return
+				}
 				failed = fmt.Errorf("chooser overflows narrow window: %dx%d", width, height)
 			}
 			if dir := os.Getenv("BIFROST_CAPTURE_DIR"); dir != "" {

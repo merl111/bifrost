@@ -8,3 +8,5 @@
 .research/
 
 /dist/
+
+/packaging/__pycache__/

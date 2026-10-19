@@ -32,7 +32,10 @@ Real provider/OAuth/SSH/VM sessions are outside these packaging tests.
 The custom AppRun preserves the caller's working directory and does not add
 bundled libraries to `LD_LIBRARY_PATH` or bundled utilities to `PATH`. Relative
 ELF RPATHs load GUI libraries without affecting external Git/vendor/shell tools.
-The pinned GTK hook selects X11; native Wayland is not qualified. No auto-updater
+The pinned GTK hook selects X11; native Wayland is not qualified. New repository windows relaunch the original AppImage so each owns its mount.
+For the optional detached daemon, set `BIFROST_DAEMON_EXECUTABLE` to your downloaded
+TUI binary before launching the GUI with `--daemon`. The daemon needs the CLI
+entry point; ordinary GUI chat does not need the TUI binary. No auto-updater
 or desktop integration is installed. Download a newer AppImage to upgrade.
 
 `.github/workflows/release.yml` checks pull requests, main and manual runs and

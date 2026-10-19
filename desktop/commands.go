@@ -208,7 +208,7 @@ func (g *desktop) commandModel(a []string) error {
 		return fmt.Errorf("expected one model slug")
 	}
 	if len(a) == 0 {
-		g.openWorkbench("Accounts")
+		g.openQuickSelection("model")
 		return nil
 	}
 	if g.busy {

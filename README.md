@@ -74,6 +74,7 @@ sessions work in the desktop too:
 | `Ctrl+N` / `Ctrl+W` | New / close conversation tab |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous conversation tab |
 | `Ctrl+K` | Search commands, files and conversations |
+| `Ctrl+Alt+P` / `Ctrl+Alt+M` | Choose provider / model |
 | `Ctrl+P` | Browse workspace files |
 | `Ctrl+L` | Focus the composer |
 | `Ctrl+S` | Save the current file or settings |
@@ -91,6 +92,21 @@ send there too. Running tabs keep streaming in the background. A dot marks an
 unread result; Stop/Escape affects the selected tab only. Account/model changes
 wait until all turns finish. Vendor CLI adapters retain their per-account lock;
 native API and Cursor-native turns have independent conversation state.
+
+## Quick provider and model selection
+
+The composer has separate **Provider** and **Model** controls. Choose a configured
+provider account, then choose one of its models without creating another profile.
+Both lists are searchable; each provider remembers its last selected model.
+
+- **Ctrl+Alt+P:** choose a provider/account.
+- **Ctrl+Alt+M** or **`:model`:** choose a model for the current provider.
+- **Refresh model list** reloads its catalog; **Enter model ID** supports unlisted models.
+
+Drafts and conversation history survive switching. Selections apply to the workspace's
+chat tabs, and switching is disabled until running turns finish or are stopped.
+
+![Separate provider and model controls in the native composer](docs/images/desktop-provider-model-controls.png)
 
 ## File explorer
 

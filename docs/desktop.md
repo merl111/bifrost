@@ -115,6 +115,15 @@ hidden at narrow sizes; their toolbar buttons and keyboard shortcuts reveal them
   Rows are reused, and directory completions retain stale-request protection.
   These conventions follow [VS Code's file icon naming precedence](https://code.visualstudio.com/api/extension-guides/file-icon-theme);
   the artwork is original and no extension or icon font is required.
+- Separate **Provider** and **Model** composer controls open searchable native
+  pickers (Ctrl+Alt+P / Ctrl+Alt+M). Model discovery uses the selected provider's
+  credentials, runs off the UI thread, is cached per provider, and can be refreshed.
+  Closing the picker cancels discovery; stale results cannot overwrite another
+  picker. An unlisted model can be entered through `:model ID`; bare `:model`
+  opens the quick picker. Each profile remembers its last selected model without
+  changing the other profiles. Switches preserve drafts and conversation history.
+  Provider/model selection is workspace-wide and remains disabled during running
+  turns; it does not change a provider in the middle of generation.
 - Source editing uses revision-checked saves (Ctrl+S), per-file undo/redo,
   search, optional Vim normal/insert modes, and durable recovery drafts shared
   with the TUI. External editor opens the configured editor in a dedicated PTY.

@@ -93,7 +93,8 @@ func (g *desktop) refreshBusy() {
 	g.stop.SetVisible(t.cancel != nil)
 	g.activityToggle.SetEnabled(g.transcript.latestActivity() >= 0)
 	g.newButton.SetEnabled(!g.operationBusy)
-	g.profiles.SetEnabled(!g.busy && len(g.accounts) > 0)
+	g.profiles.SetEnabled(!g.busy)
+	g.modelName.SetEnabled(!g.busy)
 	g.sessionList.SetEnabled(!g.operationBusy && g.connected)
 	if t.cancel != nil {
 		g.activity.SetText("Bifrost is working…")
@@ -135,31 +136,8 @@ func (g *desktop) displaySnapshot(s cli.DesktopSnapshot) {
 	g.activeChat().snapshot = s
 	g.refreshChatTabs()
 	g.accounts, g.sessions, g.connected = s.Accounts, s.Sessions, s.Connection.Connected
-	profiles := make([]string, 0, len(s.Accounts))
-	selected := -1
-	for i, a := range s.Accounts {
-		profiles = append(profiles, shortText(a.Label+" · "+a.Model, 32))
-		if a.Active {
-			selected = i
-		}
-	}
-	if len(profiles) == 0 {
-		profiles = []string{"Offline workspace"}
-		if s.Connection.Connected {
-			profiles[0] = shortText(s.Connection.Model, 30)
-		}
-		selected = 0
-	}
-	g.profiles.Items(profiles)
-	g.profiles.SetSelected(selected)
-	g.profiles.SetVisible(len(g.accounts) > 1)
-	g.modelName.SetVisible(len(g.accounts) <= 1)
-	model := s.Connection.Model
-	if model == "" {
-		model = "Offline workspace"
-	}
-	g.modelName.SetText(shortText(model, 30))
-	g.modelName.Tooltip(s.Connection.Account + " · " + model)
+	g.updateQuickSelection(s)
+
 	g.filterNavigation()
 	g.transcript = transcript{}
 	for _, event := range s.History {

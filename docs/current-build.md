@@ -1,4 +1,39 @@
-# Current implementation evidence — 18 October 2026
+# Current implementation evidence — 19 October 2026
+
+## Independent quick provider/model controls — 19 October 2026
+
+Desktop's composer now exposes separate searchable Provider and Model controls,
+including when only one saved provider is available. Ctrl+Alt+P and Ctrl+Alt+M
+open the respective picker; bare `:model` opens the same model picker. Provider
+entries identify accounts without combining their model into the label. Model
+catalogs load asynchronously with cancellation, stale-result checks, a per-profile
+cache, explicit refresh, and manual model-ID entry via the existing command line.
+The controls wrap on narrow layouts. Defaults remain workspace-wide and changes
+are blocked while any conversation tab is running.
+
+The shared model-switch implementation now prepares the requested runtime before
+persisting the provider's model. Invalid or unsupported switches leave the old
+model and conversation intact. Switching away and back restores the remembered
+model while preserving conversation identity and readable history. The TUI keeps
+its existing account/model picker and receives the same shared-runtime fix.
+
+Verification (temporary profiles/state; model-catalog fixtures, no paid inference):
+
+- Full root race suite passed, including new per-provider model memory, history,
+  invalid input, and failed-switch persistence regressions.
+- Native picker test passed: independent labels, model search/accept, provider
+  return, draft retention, cache reuse, stale discovery cancellation, busy guards,
+  and narrow rendering. Actual native captures are linked from the README.
+- Real X11 Ctrl+Alt+M/P input searches and accepts a model/provider, restores the
+  remembered model, and closes cleanly. The rebuilt TUI starts/resizes at 80×24,
+  120×36, 160×48 and 60×20, opens its command palette and exits cleanly.
+- Complete native desktop workflow passed (53.97 seconds). Desktop race tests,
+  root/desktop vet and both executable builds passed.
+- Structural delta remains non-clean: two gating churn findings in displaySnapshot
+  and refreshBusy, four minor findings and seven new-symbol findings (including
+  test size/complexity). No claim of a clean structural gate.
+
+Live external provider model catalogs and paid generation were not exercised.
 
 ## File explorer and completed-tool stall — 18 October 2026
 

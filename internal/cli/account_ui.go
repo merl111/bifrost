@@ -256,14 +256,14 @@ func (c *workspaceChat) switchAccountModel(ctx context.Context, name, model stri
 		return nil, ui.AccountChoice{}, nil, err
 	}
 	profileID := strings.TrimSpace(name)
-	if p, ok := settings.Providers[profileID]; ok && strings.TrimSpace(model) != "" {
-		p.Model = strings.TrimSpace(model)
-		settings.Providers[profileID] = p
-		if cfgPath, cfgErr := c.opts.configFile(); cfgErr == nil {
-			_ = config.SaveSettings(cfgPath, settings, true)
-		}
+	model = strings.TrimSpace(model)
+	if _, ok := settings.Providers[profileID]; !ok {
+		return nil, ui.AccountChoice{}, nil, fmt.Errorf("unknown provider profile %q", profileID)
 	}
-	events, swErr := c.switchAccountUnlocked(ctx, profileID)
+	if model == "" {
+		return nil, ui.AccountChoice{}, nil, errors.New("model ID is required")
+	}
+	events, swErr := c.switchAccountWithModelUnlocked(ctx, profileID, model)
 	freshSettings, _ := c.opts.settings()
 	choices := c.buildAccountChoices(freshSettings)
 	var activeChoice ui.AccountChoice
@@ -277,6 +277,12 @@ func (c *workspaceChat) switchAccountModel(ctx context.Context, name, model stri
 }
 
 func (c *workspaceChat) switchAccountUnlocked(ctx context.Context, name string) ([]ui.ChatEvent, error) {
+	return c.switchAccountWithModelUnlocked(ctx, name, "")
+}
+
+// Prepare the new runtime before changing saved defaults. Failed model setup
+// must leave the active provider, conversation, and remembered model intact.
+func (c *workspaceChat) switchAccountWithModelUnlocked(ctx context.Context, name, model string) ([]ui.ChatEvent, error) {
 	if err := c.ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -288,6 +294,9 @@ func (c *workspaceChat) switchAccountUnlocked(ctx context.Context, name string) 
 	stop := context.AfterFunc(c.ctx, cancel)
 	defer stop()
 	args := accountSwitchArgs(c.args, name)
+	if model != "" {
+		args = append(args, "--model", model)
+	}
 	next, err := configureAgentSetup(ctx, c.opts, args, c.stderr, true)
 	if err != nil {
 		return nil, err
@@ -322,6 +331,11 @@ func (c *workspaceChat) switchAccountUnlocked(ctx context.Context, name string) 
 	}
 	// The session switch has already committed. Persistence of a global
 	// default is best-effort; failure cannot leave the live session mismatched.
+	if model != "" {
+		p := settings.Providers[name]
+		p.Model = model
+		settings.Providers[name] = p
+	}
 	persistErr := selectProfile(c.opts, &settings, name)
 	c.cleanup()
 	c.cleanup = next.cleanup

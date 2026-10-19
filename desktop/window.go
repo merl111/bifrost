@@ -11,6 +11,7 @@ import (
 )
 
 type desktop struct {
+	quick                                                                          quickSelection
 	explorer                                                                       fileExplorer
 	editorToolbar, editorSearchRow, editorUndoButton, editorRedoButton             cui.Widget
 	editorMenu                                                                     cui.Menu
@@ -267,19 +268,18 @@ func (g *desktop) buildComposer() {
 	style(g.composer, surface, foreground, 8, false)
 	g.buildMentions(compose)
 	g.composer.Accessibility("Message Bifrost", "Enter sends. Shift Enter or Alt Enter inserts a new line.")
+	selectors := compose.Wrap(8)
+	g.profiles = button(selectors, "Provider", func() { g.openQuickSelection("provider") })
+	g.modelName = button(selectors, "Model", func() { g.openQuickSelection("model") })
+	for _, control := range []cui.Widget{g.profiles, g.modelName} {
+		control.SetSymbol(cui.SymbolDown)
+		control.IconTrailing(true)
+		control.IconSize(12)
+		style(control, elevated, foreground, 7, false, 6)
+	}
 	row := compose.Box(cui.Horizontal, 8)
 	iconButton(row, cui.SymbolAttach, "Choose a file to mention · Ctrl+P", g.showFiles)
-	g.profiles = row.Select([]string{"Offline"})
-	g.modelName = label(row, "Offline", 10, muted)
-	g.modelName.Expand(true)
-	g.modelName.MinSize(140, 0)
-	style(g.profiles, elevated, foreground, 8, false, 6)
-	g.profiles.OnAction(func(w cui.Widget) {
-		i := w.Selected()
-		if i >= 0 && i < len(g.accounts) {
-			g.switchAccount(g.accounts[i].ID)
-		}
-	})
+
 	row.Box(cui.Horizontal, 0).Expand(true)
 	g.stop = button(row, "Stop", g.cancelTurn)
 	g.stop.SetSymbol(cui.SymbolPause)
@@ -348,6 +348,8 @@ func (g *desktop) buildStatus(root cui.Widget) {
 }
 
 func (g *desktop) bindCommands() {
+	g.app.Command("Switch provider", 'p', cui.ModControl|cui.ModAlt, func() { g.openQuickSelection("provider") })
+	g.app.Command("Switch model", 'm', cui.ModControl|cui.ModAlt, func() { g.openQuickSelection("model") })
 	g.primaryCommand("Focus composer", 'l', func() { g.composer.Focus() })
 	g.primaryCommand("Search & commands", 'k', g.openPalette)
 	g.primaryCommand("Find files", 'p', g.showFiles)

@@ -163,6 +163,9 @@ func (g *desktop) openPalette() {
 	if g.paletteOpen {
 		return
 	}
+	if input, ok := g.palette.PickerPart(cui.PickerInput); ok {
+		input.Placeholder("Search commands, conversations, files…")
+	}
 	g.paletteActions = make(map[uint64]func())
 	items := []cui.Choice{}
 	add := func(title, detail string, disabled bool, action func()) {
@@ -174,6 +177,8 @@ func (g *desktop) openPalette() {
 	for _, spec := range ui.Commands() {
 		add(":"+spec.Usage, spec.Help, false, func() { g.openCommand(spec.Name + " ") })
 	}
+	add("Switch provider", "Choose a connected provider account", g.busy, func() { g.openQuickSelection("provider") })
+	add("Switch model", "Choose a model for the current provider", g.busy, func() { g.openQuickSelection("model") })
 	add("New conversation", "Ctrl+N", g.operationBusy || !g.connected, func() { g.addChat("") })
 	add("Browse workspace files", "Ctrl+P", false, g.showFiles)
 	add("Review working tree changes", "Ctrl+R", false, g.loadReview)
@@ -225,6 +230,7 @@ func (g *desktop) closePalette() {
 		return
 	}
 	g.paletteOpen = false
+	g.cancelQuickSelection()
 	g.workbench.root.SetEnabled(true)
 	g.shell.SetEnabled(g.workbench.open == "")
 	g.palette.PickerClose()

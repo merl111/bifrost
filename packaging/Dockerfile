@@ -10,9 +10,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=go /usr/local/go /usr/local/go
 ENV PATH=/usr/local/go/bin:$PATH GOMAXPROCS=4
 WORKDIR /src
-RUN git init cui && cd cui && git remote add origin https://github.com/merl111/cui.git \
-    && git fetch --depth=1 origin 1c05d5c43077af7524a171a127e60b3740c48775 \
-    && git checkout --detach FETCH_HEAD
+RUN mkdir cui && curl -fsSL --retry 3 --connect-timeout 30 --max-time 300 \
+    https://codeload.github.com/merl111/cui/tar.gz/1c05d5c43077af7524a171a127e60b3740c48775 -o cui.tar.gz \
+    && echo 'a13d5567592ed31205a85337b157756e7f372c66add858d9555e6029d051185d  cui.tar.gz' | sha256sum --check \
+    && tar -xzf cui.tar.gz --strip-components=1 -C cui && rm cui.tar.gz
 COPY patches/ /src/bifrost/patches/
 RUN cd cui && git apply ../bifrost/patches/cui-desktop.patch \
     && git apply ../bifrost/patches/cui-picker-lifetime.patch \

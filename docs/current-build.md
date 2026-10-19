@@ -26,6 +26,9 @@ to settle after a screenshot; both normal and 640×560 captures were inspected.
 The second Ubuntu CI run passed all six native fixtures plus race/vet, then
 caught a lazy Go module missing from the notices collector cache. The collector
 now explicitly downloads pinned modules when their source directory is absent.
+The third run built both artifacts and passed the packaged TUI smoke, then
+identified omitted HarfBuzz on the GTK-free runtime. Packaging now explicitly
+bundles six GTK dependencies that linuxdeploy excludes by default.
 Repository windows launched from an AppImage use the original image path, so
 each process owns its extraction/mount lifetime. Unit tests cover ordinary
 binaries, spaces and inherited unrelated AppImage environment variables.

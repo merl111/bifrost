@@ -28,9 +28,16 @@ export PATH="$work:$PATH" DEPLOY_GTK_VERSION=4
 appdir="$work/Bifrost.AppDir"
 mkdir -p "$appdir/usr/share/bifrost"
 python3 packaging/notices.py "$appdir/usr/share/bifrost/notices"
+# linuxdeploy's desktop baseline excludes these, but a GTK-free host may lack
+# them. Explicit library arguments override that exclusion list.
+libraries=()
+for name in libharfbuzz.so.0 libfribidi.so.0 libwayland-client.so.0 \
+    libgmp.so.10 libgpg-error.so.0 libcom_err.so.2; do
+    libraries+=(--library "/usr/lib/x86_64-linux-gnu/$name")
+done
 "$work/squashfs-root/AppRun" --appdir "$appdir" \
     --executable "$work/bifrost-desktop" --desktop-file packaging/linux/bifrost-desktop.desktop \
-    --icon-file packaging/linux/bifrost-desktop.svg --custom-apprun packaging/linux/AppRun --plugin gtk
+    --icon-file packaging/linux/bifrost-desktop.svg --custom-apprun packaging/linux/AppRun --plugin gtk "${libraries[@]}"
 # Supply the pinned runtime explicitly; never fetch a mutable continuous runtime.
 ARCH=x86_64 "$work/squashfs-root/plugins/linuxdeploy-plugin-appimage/usr/bin/appimagetool" \
     --mksquashfs-opt -processors --mksquashfs-opt 4 \

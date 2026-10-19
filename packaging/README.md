@@ -1,7 +1,7 @@
 # Linux release packaging
 
 The GUI and TUI stay separate. `packaging/Dockerfile` builds on Ubuntu 24.04
-with Go 1.26.0, checks out the pinned CUI commit from `patches/README.md`, and
+with Go 1.26.0, downloads the checksum-verified source archive for the pinned CUI commit from `patches/README.md`, and
 applies both compatibility patches. It never uses a developer's adjacent CUI tree.
 The Go dependency checksums are checked by the toolchain. Packaging tool downloads
 are pinned and SHA-256 verified before execution. Update pins deliberately.

@@ -7,6 +7,7 @@ import pty
 import re
 import select
 import signal
+import shutil
 import struct
 import subprocess
 import sys
@@ -150,6 +151,12 @@ with tempfile.TemporaryDirectory(prefix='bifrost-package-smoke-') as directory:
                XDG_STATE_HOME=str(base / 'state-home'), XDG_CACHE_HOME=str(base / 'cache'),
                TERM='xterm-256color', SHELL='/bin/sh', APPIMAGE_EXTRACT_AND_RUN='1',
                GDK_BACKEND='x11', GSK_RENDERER='cairo')
+    if mode == 'gui':
+        relocated = base / 'downloads with spaces'
+        relocated.mkdir()
+        destination = relocated / pathlib.Path(binary).name
+        shutil.copy2(binary, destination)
+        binary = str(destination)
     headless = dict(env)
     headless.pop('DISPLAY', None)
     version = subprocess.check_output([binary, '--version'], env=headless, text=True, timeout=30)

@@ -26,8 +26,8 @@ RUN go mod download && cd desktop && go mod download
 
 FROM toolchain AS build
 COPY . .
-RUN bash packaging/check.sh
-RUN bash packaging/build.sh /out
+RUN --mount=type=cache,target=/root/.cache/go-build bash packaging/check.sh
+RUN --mount=type=cache,target=/root/.cache/go-build bash packaging/build.sh /out
 
 # No system GTK, Go, compiler or source checkout: smoke-test the shipped files.
 FROM ubuntu:24.04 AS verified

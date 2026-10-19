@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Run inside packaging/Dockerfile, or an equivalent Ubuntu 24.04 build host.
 set -euo pipefail
+[[ "$(uname -m)" == x86_64 ]] || { echo "This release target requires Linux x86-64" >&2; exit 1; }
 out="$(mkdir -p "${1:?output directory}" && realpath "$1")"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
@@ -32,6 +33,7 @@ python3 packaging/notices.py "$appdir/usr/share/bifrost/notices"
     --icon-file packaging/linux/bifrost-desktop.svg --custom-apprun packaging/linux/AppRun --plugin gtk
 # Supply the pinned runtime explicitly; never fetch a mutable continuous runtime.
 ARCH=x86_64 "$work/squashfs-root/plugins/linuxdeploy-plugin-appimage/usr/bin/appimagetool" \
+    --mksquashfs-opt -processors --mksquashfs-opt 4 \
     --runtime-file "$work/runtime-x86_64" "$appdir" "$out/Bifrost-$version-x86_64.AppImage"
 tar -czf "$out/bifrost-$version-notices.tar.gz" -C "$appdir/usr/share/bifrost" notices
 printf '%s\n' "$version" > "$out/VERSION"

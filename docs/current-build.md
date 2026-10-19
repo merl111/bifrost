@@ -16,6 +16,12 @@ without system GTK. Checksums, version, release notes and third-party notices
 accompany the two downloads. Tag/version mismatch prevents publication; assets
 are uploaded to a draft before it becomes public. See [packaging](../packaging/README.md).
 
+The first clean Ubuntu CI run passed both race/vet suites and the workspace,
+controls and extensions native fixtures, then caught a project chooser height
+overflow (640×588 after requesting 640×560). The chooser now scrolls its outer
+content when theme metrics need more room, keeping its actions reachable; the
+existing narrow-window regression remains unchanged and passed locally.
+
 Local TUI packaging smoke passed (120×36, 80×24, 160×48 and 60×20, command palette,
 clean exit). Clean-container and GitHub workflow validation are in progress;
 publication is deferred until they pass. FUSE mounting and real provider/VM

@@ -26,6 +26,8 @@ type projectPicker struct {
 func newProjectPicker(app *cui.App, args []string, choose func([]string)) *projectPicker {
 	p := &projectPicker{args: args, choose: choose}
 	p.window = app.Window("Bifrost — Open a project", 900, 640)
+	// Keep every action reachable when theme metrics exceed a small viewport.
+	p.window.Scrollable(true)
 	root := p.window.Root().Box(cui.Vertical, 14)
 	root.Expand(true)
 	root.Padding(28)

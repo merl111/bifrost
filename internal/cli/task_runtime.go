@@ -65,6 +65,11 @@ func OpenTaskRuntime(ctx context.Context, opts options, cfg *agent.Config, maxCo
 	if err := os.MkdirAll(stateDir, 0o700); err != nil {
 		return nil, fmt.Errorf("task runtime: create state: %w", err)
 	}
+	settings, err := opts.settings()
+	if err != nil {
+		return nil, err
+	}
+	cfg.ChildProfile, cfg.ChildModel = settings.Subagents.Provider, settings.Subagents.Model
 	var scheduler *tasks.Scheduler
 	resolver, err := taskProviderResolver(opts)
 	if err != nil {

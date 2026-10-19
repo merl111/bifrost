@@ -134,3 +134,31 @@ func find(tools []agent.Tool, name string) agent.Tool {
 	}
 	panic("missing tool " + name)
 }
+
+func TestSpawnUsesConfiguredDefaultsAndExplicitOverrides(t *testing.T) {
+	s, err := tasks.New(filepath.Join(t.TempDir(), "state"), func(_ context.Context, spec tasks.TaskSpec, _ func(tasks.Event)) (tasks.Result, error) {
+		return tasks.Result{Output: spec.Model}, nil
+	}, tasks.Options{MaxConcurrency: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	spawn := find(ToolsWithOptions(s, "", Options{DefaultProfile: "economy", DefaultModel: "small"}), "spawn_agent")
+	for _, tc := range []struct{ profile, model, wantProfile, wantModel string }{{"", "", "economy", "small"}, {"", "custom", "economy", "custom"}, {"other", "", "other", ""}, {"economy", "", "economy", "small"}} {
+		args, _ := json.Marshal(map[string]string{"root": t.TempDir(), "prompt": "fixture", "mode": "readonly", "profile": tc.profile, "model": tc.model})
+		raw, err := spawn.Call(context.Background(), args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var task tasks.Task
+		if err := json.Unmarshal([]byte(raw), &task); err != nil {
+			t.Fatal(err)
+		}
+		if task.Profile != tc.wantProfile || task.Model != tc.wantModel {
+			t.Fatalf("effective defaults: %+v", task)
+		}
+		if _, err := s.Wait(context.Background(), task.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+}

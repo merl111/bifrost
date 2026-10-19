@@ -9,6 +9,8 @@ import (
 )
 
 type workbenchView struct {
+	subagents                                                   subagentView
+	skills                                                      skillsView
 	rail, brand, navTitle, back, reading, left, right, subtitle cui.Widget
 	compact                                                     bool
 	inset                                                       int
@@ -45,8 +47,8 @@ func (g *desktop) buildWorkbench(stack cui.Widget) {
 		name string
 		icon int
 	}{
-		{"Project", cui.SymbolHome}, {"Tasks", cui.SymbolPoll},
-		{"Skills", cui.SymbolFile}, {"MCP servers", cui.SymbolPanel},
+		{"Project", cui.SymbolHome}, {"Tasks", cui.SymbolPoll}, {"Sub-agents", cui.SymbolPerson},
+		{"Installed skills", cui.SymbolFile}, {"Skills", cui.SymbolSearch}, {"MCP servers", cui.SymbolPanel},
 		{"Accounts", cui.SymbolPerson}, {"Settings", cui.SymbolSettings},
 	} {
 		name := dest.name
@@ -67,9 +69,11 @@ func (g *desktop) buildWorkbench(stack cui.Widget) {
 	w.body = main.Box(cui.Vertical, 12)
 	w.body.Expand(true)
 	g.buildTaskPanel(g.workbenchPage("Tasks"))
+	g.buildSubagentPanel(g.workbenchPage("Sub-agents"))
 	g.buildSettingsPanel(g.workbenchPage("Settings"))
 	g.buildAccountsPanel(g.workbenchPage("Accounts"))
 	g.buildMarketPanel(g.workbenchPage("Marketplace"))
+	g.buildSkillsPanel(g.workbenchPage("Installed skills"))
 	g.buildProjectPanel(g.workbenchPage("Project"))
 	g.buildProjectDetails(g.workbenchPage("Project details"))
 	w.root.SetVisible(false)
@@ -128,6 +132,10 @@ func (g *desktop) openWorkbench(name string) {
 		page.SetVisible(visible)
 	}
 	switch name {
+	case "Sub-agents":
+		g.loadSubagents()
+	case "Installed skills":
+		g.loadInstalledSkills()
 	case "Tasks":
 		g.refreshTasks()
 	case "Settings":

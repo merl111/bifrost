@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"bifrost/internal/execpolicy"
 	"context"
 	"errors"
 	"fmt"
@@ -157,7 +158,8 @@ func WithReviewLoader(loader func(context.Context) (string, error)) Option {
 // UI, while chat, review, editor, and terminal activity are supplied through
 // explicit options and callbacks.
 type Model struct {
-	mu sync.Mutex
+	executionApprovals []*execpolicy.Request
+	mu                 sync.Mutex
 
 	root                    string
 	tree                    fileTree
@@ -425,6 +427,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		return m, m.updateWindowSize(msg)
 	case tea.KeyPressMsg:
+		if m.handleExecutionApproval(msg.String()) {
+			return m, nil
+		}
 		return m, m.updateKey(msg)
 	case tea.MouseClickMsg:
 		mouse := msg.Mouse()
@@ -1196,6 +1201,9 @@ func (m *Model) View() tea.View {
 }
 
 func (m *Model) render() string {
+	if request := m.pendingExecutionApproval(); request != nil {
+		return m.padRender(m.renderExecutionApproval(request))
+	}
 	return m.padRender(m.renderScreen())
 }
 

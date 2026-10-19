@@ -24,17 +24,18 @@ import (
 
 // workspaceChat serializes turns and account switches around one conversation.
 type workspaceChat struct {
-	mu      sync.Mutex
-	ctx     context.Context
-	cancel  context.CancelFunc
-	opts    options
-	args    []string
-	setup   agentSetup
-	monitor *taskMonitorState
-	stderr  io.Writer
-	store   *session.Store
-	current session.Session
-	cleanup func()
+	mu                  sync.Mutex
+	ctx                 context.Context
+	cancel              context.CancelFunc
+	opts                options
+	args                []string
+	setup               agentSetup
+	monitor             *taskMonitorState
+	stderr              io.Writer
+	store               *session.Store
+	current             session.Session
+	contextInstructions string
+	cleanup             func()
 	// Frontends without the TUI's interactive viewer must not advertise its
 	// highlight and walkthrough tools as available to the model.
 }
@@ -97,7 +98,7 @@ func (c *workspaceChat) currentConnectionInfo(providerKind string) ui.Connection
 	connected := c.setup.cfg.Provider != nil || c.setup.cfg.RunExternal != nil
 	var usedTok, maxTok int
 	if connected && strings.TrimSpace(c.setup.cfg.ModelName) != "" {
-		usedTok = EstimateSessionTokens(c.current.Messages, c.setup.cfg.Instructions, "")
+		usedTok = EstimateSessionTokens(c.current.Messages, valueOrString(c.contextInstructions, c.setup.cfg.Instructions), "")
 		maxTok = provider.ModelContextWindowTokens(providerKind, c.setup.cfg.ModelName)
 	}
 	return ui.ConnectionInfo{
@@ -178,9 +179,11 @@ func (c *workspaceChat) run(ctx context.Context, prompt string, emit func(ui.Cha
 		}
 		return errors.Join(runErr, loadErr)
 	}
-	cfg := c.setup.cfg
-	applyWorkspaceProjectContext(c.opts, &cfg)
-	attachWorkspaceViewerTools(&cfg, emit)
+	cfg, err := prepareWorkspaceTurn(ctx, c.opts, c.setup.cfg, emit)
+	if err != nil {
+		return err
+	}
+	c.contextInstructions = cfg.Instructions
 	provKind := ""
 	if s, err := c.opts.settings(); err == nil {
 		provKind = s.Providers[cfg.ProfileName].Kind
@@ -194,12 +197,10 @@ func (c *workspaceChat) run(ctx context.Context, prompt string, emit func(ui.Cha
 		}
 		emit(ev)
 	}
-	current, res, err := runMonitoredSessionTurn(ctx, c.opts, c.store, c.current, cfg, prompt, c.monitor, c.setup.maxAgents)
+	current, _, err := runMonitoredSessionTurn(ctx, c.opts, c.store, c.current, cfg, prompt, c.monitor, c.setup.maxAgents)
 	c.current = current
 	usedTok := EstimateSessionTokens(c.current.Messages, cfg.Instructions, "")
-	if res.Usage.TotalTokens > usedTok {
-		usedTok = res.Usage.TotalTokens
-	}
+	// Turn-wide usage includes repeated inputs; it is not context occupancy.
 	emit(ui.ChatEvent{
 		Kind: "connection",
 		Connection: &ui.ConnectionInfo{
@@ -832,6 +833,9 @@ func (c *workspaceChat) removeAccount(ctx context.Context, profileID string) ([]
 		return nil, fmt.Errorf("profile %q not found", profileID)
 	}
 	delete(settings.Providers, profileID)
+	if settings.Subagents.Provider == profileID {
+		settings.Subagents = config.SubagentSettings{}
+	}
 	if settings.ActiveProvider == profileID {
 		settings.ActiveProvider = ""
 		for name := range settings.Providers {
@@ -891,6 +895,11 @@ func (c *workspaceChat) compactCurrentSession(ctx context.Context) (ui.SessionSu
 	if c.store == nil || c.current.ID == "" {
 		return ui.SessionSummary{}, nil, 0, 0, errors.New("no active session to compact")
 	}
+	unlock, err := acquireSessionTurn(c.opts.statePath(), c.current.ID)
+	if err != nil {
+		return ui.SessionSummary{}, nil, 0, 0, err
+	}
+	defer unlock()
 	fresh, err := c.store.Load(c.current.ID)
 	if err != nil {
 		return ui.SessionSummary{}, nil, 0, 0, err
@@ -899,12 +908,13 @@ func (c *workspaceChat) compactCurrentSession(ctx context.Context) (ui.SessionSu
 		return ui.SessionSummary{}, nil, 0, 0, errors.New("conversation has no messages to compact yet")
 	}
 	if fresh.Status != session.StatusCompleted {
-		if saved, sErr := saveSessionStatus(c.store, fresh, session.StatusCompleted); sErr == nil {
-			fresh = saved
-		}
+		return ui.SessionSummary{}, nil, 0, 0, errors.New("resume and complete the interrupted conversation before summarizing")
 	}
 	summaryText := BuildConversationSummary(ctx, c.setup.cfg, fresh.Messages)
-	compacted, err := c.store.Compact(fresh.ID, summaryText, 2)
+	if err := ctx.Err(); err != nil {
+		return ui.SessionSummary{}, nil, 0, 0, err
+	}
+	compacted, err := compactReducedSession(ctx, c.store, fresh, summaryText)
 	if err != nil {
 		return ui.SessionSummary{}, nil, 0, 0, err
 	}
@@ -913,7 +923,7 @@ func (c *workspaceChat) compactCurrentSession(ctx context.Context) (ui.SessionSu
 	if s, err := c.opts.settings(); err == nil {
 		provKind = s.Providers[c.setup.cfg.ProfileName].Kind
 	}
-	usedTok := EstimateSessionTokens(c.current.Messages, c.setup.cfg.Instructions, "")
+	usedTok := EstimateSessionTokens(c.current.Messages, valueOrString(c.contextInstructions, c.setup.cfg.Instructions), "")
 	maxTok := provider.ModelContextWindowTokens(provKind, c.setup.cfg.ModelName)
 	return summarizeSession(c.current, true), c.history(), usedTok, maxTok, nil
 }

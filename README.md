@@ -108,6 +108,68 @@ chat tabs, and switching is disabled until running turns finish or are stopped.
 
 ![Separate provider and model controls in the native composer](docs/images/desktop-provider-model-controls.png)
 
+## Conversation controls and context
+
+Every open tab has a **×** close button; **Ctrl+W** closes the current tab. Closing
+keeps sent messages in **History**, available on the tab bar even when the sidebar
+is hidden. Unsent drafts require confirmation before being discarded.
+
+A subtle **Context ~N%** control below the composer estimates occupied context.
+Hover for token counts and capacity; unknown capacities show **Context —**.
+Click to summarize. The original conversation remains in History, and the new
+conversation uses the summary plus recent whole turns when they fit. Automatic
+summarization runs before a turn at 80% of a known model window or 400 KiB of text.
+Provider summaries have a 30-second deadline; unavailable providers use a local
+condensed transcript. Compaction only succeeds when estimated context shrinks.
+
+![Native tabs, close controls and conversation history](docs/images/desktop-context-tabs-history.png)
+
+## Installed skills and sub-agent defaults
+
+Open **Installed skills** to inspect **Project**, **Global**, and **Built-in**
+entries, including source, revision, shadowed copies and auto-load state. Project
+copies take precedence. Configure project/global auto-load from the selected
+skill; named projects can inherit global defaults or keep their own list, including
+an empty list. Changes apply on the next turn. An explicit `--skill` overrides
+auto-load defaults.
+
+The AI can use `skills_search`, `skills_activate`, and `read_skill_resource` to
+find and load an available skill for the current task. This does not change your
+saved auto-load settings or run scripts. **Discover skills** opens the catalog
+for preview and installation; automatic remote installation is not enabled.
+
+![Scoped installed skills and auto-load controls](docs/images/desktop-installed-skills.png)
+
+Open **Sub-agents** to choose their default provider and model independently of
+the main conversation. Load the provider's model catalog or type an ID. Empty
+values inherit the parent provider or selected profile's model. Explicit spawn
+choices override defaults; a different explicit provider uses its own model.
+Settings apply to new turns and are also available in TUI **`:settings`** under
+`subagents.provider` and `subagents.model`.
+
+![Independent sub-agent provider and model defaults](docs/images/desktop-subagent-defaults.png)
+
+## Command permissions
+
+The composer's **Commands** picker offers **disabled**, **ask every time**,
+**rules**, and **allow all**. These are persisted defaults. Ask mode prompts for
+the exact command before execution. In the TUI, **Ctrl+Y** allows once and
+**Ctrl+N / Escape** denies; cancellation invalidates pending approvals.
+
+Rules mode allows exact argv matches from `execution.allow`, plus `pwd`, `ls`,
+`ls -la`, and `rg --files`. Everything else asks. Shell scripts such as `sh -c …`
+need their own exact rule or approval; rules do not interpret shell syntax.
+Unmatched commands in headless/daemon runs fail closed. Existing configurations
+keep their previous behavior unless a mode is selected.
+
+This policy covers Bifrost's native agent exec and Cursor Native shell bridge,
+including inherited child-task policy. Vendor CLI backends manage their own tools
+and cannot use Bifrost approval modes. Manually entered terminal commands, MCP
+servers, browser tools and configured hooks retain their own capability controls;
+this is not an OS sandbox.
+
+![Compact composer with command policy and context](docs/images/desktop-workspace-controls-narrow.png)
+
 ## File explorer
 
 Open **Files** (Ctrl+P) for a compact, folders-first directory browser. Native vector

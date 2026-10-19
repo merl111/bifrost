@@ -160,6 +160,7 @@ func (g *desktop) loadQuickModels(account ui.AccountChoice) {
 				g.quick.models = make(map[string][]ui.AccountModelOption)
 			}
 			g.quick.models[account.ID] = models
+			g.updateContextMeter(g.activeChat().snapshot.Connection)
 			g.showModelChoices(account, models, "")
 		}
 	})

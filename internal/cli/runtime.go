@@ -88,7 +88,8 @@ func configureAgentSetup(ctx context.Context, opts options, args []string, stder
 	fs.BoolVar(&cfg.WriteEnabled, "allow-write", defaults.AllowWrite, "allow revision-checked file edits")
 	fs.BoolVar(&cfg.ExecEnabled, "allow-exec", defaults.AllowExec, "allow commands with host permissions")
 	fs.IntVar(&cfg.MaxSteps, "max-steps", defaults.MaxSteps, "maximum model steps, 1..100")
-	fs.StringVar(&skills, "skill", strings.Join(defaults.Skills, ","), "comma-separated installed skills")
+	cfg.LoadDefaultSkills = true
+	fs.StringVar(&skills, "skill", "", "comma-separated installed skills")
 	fs.StringVar(&mcpConfig, "mcp-config", defaults.MCPConfig, "trusted MCP configuration")
 	fs.BoolVar(&desktopOptIn, "desktop", false, "enable observation-based desktop tools")
 	fs.BoolVar(&browserOptIn, "browser", defaults.Browser, "enable isolated browser tools")
@@ -212,6 +213,9 @@ func configureAgentSetup(ctx context.Context, opts options, args []string, stder
 		cfg.RunExternal = nil
 		startupNotice = bindErr.Error() + ". Workspace opened without that account; paste the key in :accounts."
 	}
+	if err := configureExecutionPolicy(&cfg, settings, nil); err != nil {
+		return agentSetup{cleanup: cleanup}, err
+	}
 	if cfg.RunExternal != nil {
 		explicitExternalIncompatible := false
 		fs.Visit(func(f *flag.Flag) {
@@ -225,6 +229,11 @@ func configureAgentSetup(ctx context.Context, opts options, args []string, stder
 		}
 		sshName, browserOptIn, desktopOptIn, mcpConfig = "", false, false, ""
 	}
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "skill" {
+			cfg.LoadDefaultSkills = false
+		}
+	})
 	if err := activateSkills(opts, &cfg, skills); err != nil {
 		return agentSetup{cfg: cfg, cleanup: cleanup}, err
 	}
@@ -334,6 +343,9 @@ func runAgent(ctx context.Context, opts options, args []string, stdout, stderr i
 	defer setup.cleanup()
 	cfg := setup.cfg
 	cfg.DisableStreaming = opts.json
+	if err := loadDefaultSkills(opts, &cfg); err != nil {
+		return err
+	}
 	applyWorkspaceProjectContext(opts, &cfg)
 	prompt := strings.Join(setup.rest, " ")
 	if strings.TrimSpace(prompt) == "" {

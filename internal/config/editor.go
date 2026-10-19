@@ -207,6 +207,12 @@ func describeKey(key string) string {
 
 func fieldDescription(key string) string {
 	descriptions := map[string]string{
+		"subagents":               "Default provider and model for spawned child tasks. Empty values inherit the parent or selected profile model.",
+		"subagents.provider":      "Saved provider profile for spawned subagents; empty inherits the parent. Explicit spawn choices take precedence.",
+		"subagents.model":         "Default subagent model ID; empty uses the selected provider model or parent model.",
+		"execution":               "Command approval policy. Separate from the allow_exec capability.",
+		"execution.mode":          "allow: allow all enabled commands; ask: approve each command; rules: exact argv rules, otherwise ask. Empty preserves allow behavior.",
+		"execution.allow":         "JSON array of exact argv arrays automatically approved in rules mode. Shell scripts must match the entire argv.",
 		"active_provider":         "Provider profile selected by default; empty uses the runtime/provider environment.",
 		"providers":               "JSON object mapping profile names to provider objects. Each object requires kind and model.",
 		"projects":                "JSON object mapping project names to provider, skills, MCP, and environment defaults.",

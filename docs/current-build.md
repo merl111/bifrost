@@ -1,5 +1,55 @@
 # Current implementation evidence — 19 October 2026
 
+## Context, history, scoped skills, approvals and child models — 19 October 2026
+
+- Native tabs now have individual close buttons and an always-visible History action.
+  Sent conversations remain persisted; draft disposal retains its confirmation.
+- The composer shows estimated context occupancy and exposes explicit summarization.
+  Auto-compaction remains before-turn at 80% of a heuristic model window or 400 KiB
+  of text. Catalog capacities improve the GUI meter when loaded; automatic thresholds
+  currently use the model heuristic. Unknown capacities do not produce a percentage.
+- Summarization has a bounded provider request and local transcript fallback. It only
+  adopts a smaller context, retains source history, strips opaque checkpoints and
+  converts retained tool calls to inert portable history. Source/fork turn locks,
+  revision checks, interruption checks and cancellation prevent unsafe continuation.
+  Cumulative turn usage is no longer mistaken for context occupancy.
+- Installed skills expose project/global/built-in scopes, shadowing, source, revision
+  and auto-load defaults. Changes are read on new turns, including daemon turns.
+  Explicit empty project lists survive persistence; `--skill` remains an override.
+  Existing task-local search/activation/resource tools remain model-directed. Remote
+  catalog installation remains an explicit preview/install action.
+- Native and Cursor Native agent commands support disabled/ask/rules/allow-all modes.
+  GUI and TUI ask once for an exact command; pending approvals expire with the turn.
+  Rules compare exact argv; shell strings do not receive implicit normalization.
+  Vendor CLI and delegated vendor execution cannot claim Bifrost approval coverage.
+  Headless and daemon runs reject unmatched commands when approval is unavailable.
+- Sub-agent provider/model defaults are independent of the parent. Effective defaults
+  are applied before scheduling so durable task records show the selected values.
+  Explicit spawn overrides take precedence, and a different explicitly selected
+  provider does not accidentally receive the default provider's model. Removing a
+  referenced profile clears its child defaults.
+
+Validation uses temporary projects/config/state and local provider fixtures:
+
+- Root race suite and desktop race tests passed; root/desktop vet and both builds passed.
+- Summarization tests inspect the next provider request, verify reduced context and
+  original history, reject canceled summaries, and test automatic compaction/turn locks.
+- Execution tests verify denial prevents filesystem side effects in both native exec
+  and the Cursor bridge, and cancellation invalidates approval. TUI tests verify
+  explicit approval keys and stale-request dismissal. No paid/live vendor calls.
+- Native control test exercises close/history, scoped skills and persistence, command
+  selection, sub-agent defaults and 800×720 rendering. Screenshots in README are
+  actual native captures. The complete existing native workflow passed in 53.99s.
+- The rebuilt TUI passed PTY startup, command palette, resizing at 80×24, 120×36,
+  160×48 and 60×20, and clean shutdown. GTK/Xvfb still emits known layout/focus warnings.
+- The structural delta against `2c4128c` remains non-clean: 81 findings, including
+  31 minor and 24 new-symbol findings. Its 26 gating findings comprise one summary
+  complexity regression, nine duplication groups, nine reused-helper clone groups,
+  and seven churn findings. Functional coverage does not establish a clean
+  structural gate or live vendor qualification.
+
+
+
 ## Independent quick provider/model controls — 19 October 2026
 
 Desktop's composer now exposes separate searchable Provider and Model controls,

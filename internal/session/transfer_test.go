@@ -4,6 +4,7 @@ import (
 	"bifrost/internal/provider"
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -35,7 +36,7 @@ func TestTransferAndCompactPreserveSourceAndToolBatches(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(compacted.Messages) != 5 || compacted.Messages[1].Content != "second" || compacted.Messages[3].ToolCallID != "a" {
+	if len(compacted.Messages) != 5 || compacted.Messages[1].Content != "second" || !strings.Contains(compacted.Messages[3].Content, "contents") || compacted.Messages[3].ToolCallID != "" {
 		t.Fatal("split a turn")
 	}
 	original, _ := st.Load(s.ID)

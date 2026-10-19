@@ -391,3 +391,23 @@ Design references: [GNOME patterns](https://developer.gnome.org/hig/patterns.htm
 for selection/search and native file dialogs; [Go regexp](https://pkg.go.dev/regexp)
 for regular-expression behavior. GTK captures and protocol fixtures are evidence
 for this build; live Cursor service acceptance still requires separate testing.
+
+### Context, history, skills and sub-agent controls — 19 October 2026
+
+See the [conversation controls](../README.md#conversation-controls-and-context),
+[installed skill and sub-agent settings](../README.md#installed-skills-and-sub-agent-defaults),
+and [command permissions](../README.md#command-permissions) for current behavior.
+The context meter is a byte-based estimate, not a provider tokenizer measurement.
+Original histories survive compaction; retained tool exchanges become inert portable
+transcript text, without old opaque continuation checkpoints. A compacted fork is
+used only if its estimated context is smaller. Both source and fork use turn locks.
+
+Scope filters expose copies hidden by project/global precedence. Auto-load changes
+are revision-checked and read on the next turn. Task-selected skills remain on-demand.
+The sub-agent settings page supports catalog discovery, manual model IDs and profile
+inheritance without changing the main model. Explicit spawn parameters take precedence.
+
+Shell policy is enforced before native exec and at the Cursor Native filesystem
+bridge. Detached approval requests are bounded by the originating turn's lifetime.
+Vendor CLI backends cannot bypass this policy through delegation: unsupported command
+approval is rejected at the external-run boundary. Headless runs do not fabricate approval.

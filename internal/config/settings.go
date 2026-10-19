@@ -13,6 +13,7 @@ import (
 
 	"bifrost/internal/atomicfile"
 	"bifrost/internal/domain"
+	"bifrost/internal/execpolicy"
 	"bifrost/internal/filelock"
 	"bifrost/internal/hooks"
 	"net/url"
@@ -23,6 +24,8 @@ const maxSettingsBytes = 1 << 20
 // Settings contains user-approved machine-local defaults, never literal API keys.
 // Project files are not automatically promoted to trusted execution settings.
 type Settings struct {
+	Subagents      SubagentSettings            `json:"subagents"`
+	Execution      execpolicy.Settings         `json:"execution"`
 	Hooks          []hooks.Hook                `json:"hooks,omitempty"`
 	SchemaVersion  int                         `json:"schema_version"`
 	ActiveProvider string                      `json:"active_provider,omitempty"`
@@ -34,6 +37,24 @@ type Settings struct {
 	Decision       DecisionSettings            `json:"decision,omitempty"`
 	Marketplace    MarketplaceSettings         `json:"marketplace,omitempty"`
 	Connectors     ConnectorSettings           `json:"connectors,omitempty"`
+}
+
+type SubagentSettings struct {
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+}
+
+func (s SubagentSettings) Validate(providers map[string]ProviderSettings) error {
+	if s.Provider != "" {
+		if _, ok := providers[s.Provider]; !ok {
+			return errors.New("subagents.provider must name a saved provider")
+		}
+	}
+	if len(s.Model) > 256 || strings.ContainsAny(s.Model, "\x00\r\n") {
+		return errors.New("invalid subagent model")
+	}
+
+	return nil
 }
 
 type ConnectorSettings struct {
@@ -65,7 +86,7 @@ type RunDefaults struct {
 }
 type ProjectDefaults struct {
 	Provider       string   `json:"provider,omitempty"`
-	Skills         []string `json:"skills,omitempty"`
+	Skills         []string `json:"skills"`
 	MCPConfig      string   `json:"mcp_config,omitempty"`
 	Environment    string   `json:"environment,omitempty"`
 	GitHubRepo     string   `json:"github_repo,omitempty"`
@@ -205,6 +226,12 @@ func writeSettings(path string, cfg Settings) error {
 	return atomicfile.Write(path, append(b, '\n'))
 }
 func (s Settings) Validate() error {
+	if err := s.Subagents.Validate(s.Providers); err != nil {
+		return err
+	}
+	if err := s.Execution.Validate(); err != nil {
+		return err
+	}
 	if s.Marketplace.CatalogURL != "" {
 		if err := (ProviderSettings{Kind: "chat-completions", Model: "catalog", BaseURL: s.Marketplace.CatalogURL}).Validate(); err != nil {
 			return fmt.Errorf("marketplace catalog: %w", err)

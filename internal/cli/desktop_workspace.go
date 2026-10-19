@@ -8,6 +8,7 @@ import (
 
 	"bifrost/internal/config"
 	"bifrost/internal/environment"
+	"bifrost/internal/execpolicy"
 	"bifrost/internal/ui"
 )
 
@@ -33,6 +34,7 @@ type DesktopWorkspace struct {
 }
 
 type DesktopSnapshot struct {
+	Execution                 execpolicy.Settings
 	History                   []ui.ChatEvent
 	Accounts                  []ui.AccountChoice
 	Sessions                  []ui.SessionSummary
@@ -151,7 +153,7 @@ func (d *DesktopWorkspace) Snapshot(ctx context.Context) (DesktopSnapshot, error
 	}
 	cfg := d.chat.setup.cfg
 	return DesktopSnapshot{
-		History: d.chat.history(), Accounts: d.chat.buildAccountChoices(settings), Sessions: sessions,
+		Execution: settings.Execution, History: d.chat.history(), Accounts: d.chat.buildAccountChoices(settings), Sessions: sessions,
 		Connection:   d.chat.currentConnectionInfo(settings.Providers[cfg.ProfileName].Kind),
 		WriteEnabled: cfg.WriteEnabled, ExecEnabled: cfg.ExecEnabled,
 	}, nil

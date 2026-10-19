@@ -26,6 +26,7 @@ type chatTabs struct {
 	items           []*chatTab
 	active          int
 	buttons         []cui.Widget
+	groups, closes  []cui.Widget
 	previous, next  cui.Widget
 	capacity, start int
 	restoreScroll   bool
@@ -51,7 +52,16 @@ func (g *desktop) buildChatTabs(parent cui.Widget) {
 	g.chats.capacity = 4
 	g.chats.previous = button(row, "‹", func() { g.cycleChat(-1) })
 	for i := 0; i < 32; i++ {
-		w := button(row, "", func() { g.selectChat(i) })
+		group := row.Box(cui.Horizontal, 0)
+		w := button(group, "", func() { g.selectChat(i) })
+		close := iconButton(group, cui.SymbolClose, "Close conversation tab", func() {
+			g.selectChat(i)
+			if g.chats.active == i {
+				g.closeChat()
+			}
+		})
+		g.chats.groups = append(g.chats.groups, group)
+		g.chats.closes = append(g.chats.closes, close)
 		w.SetVisible(false)
 		g.chats.buttons = append(g.chats.buttons, w)
 	}
@@ -60,7 +70,7 @@ func (g *desktop) buildChatTabs(parent cui.Widget) {
 	spacer.Expand(true)
 	iconButton(row, cui.SymbolPlus, "New conversation · Ctrl+N", func() { g.addChat("") })
 	iconButton(row, cui.SymbolEdit, "Rename tab · :chat rename NAME", func() { g.openCommand("chat rename ") })
-	iconButton(row, cui.SymbolClose, "Close selected tab · Ctrl+W", g.closeChat)
+	button(row, "History", g.showHistory).Tooltip("Saved conversations, including closed tabs")
 }
 
 func (g *desktop) cycleChat(delta int) {
@@ -110,6 +120,7 @@ func (g *desktop) refreshChatTabs() {
 	for i, w := range g.chats.buttons {
 		visible := i < len(g.chats.items) && i >= g.chats.start && i < g.chats.start+capacity
 		w.SetVisible(visible)
+		g.chats.groups[i].SetVisible(visible)
 		if !visible {
 			continue
 		}
@@ -122,6 +133,7 @@ func (g *desktop) refreshChatTabs() {
 			mark, state = "●  ", " · Unread result"
 		}
 		w.SetText(mark + shortText(title, 20))
+		g.chats.closes[i].Tooltip("Close " + title + " · Ctrl+W")
 		w.Tooltip(title + state)
 		w.Accessibility(title+state, "Switch conversation")
 		bg, fg := rail, muted
@@ -139,7 +151,7 @@ func (g *desktop) resizeChatTabs() {
 	if !ok {
 		return
 	}
-	capacity := max(1, (width-int(190*g.textScale))/int(200*g.textScale))
+	capacity := max(1, (width-int(240*g.textScale))/int(240*g.textScale))
 	if capacity != g.chats.capacity {
 		g.chats.capacity = capacity
 		g.refreshChatTabs()
@@ -188,6 +200,7 @@ func (g *desktop) addChat(name string) {
 	s := g.activeChat().snapshot
 	s.History = nil
 	s.Sessions = nil
+	s.Connection.ContextTokens = 0
 	g.chats.items = append(g.chats.items, &chatTab{title: strings.TrimSpace(name), snapshot: s})
 	g.selectChat(len(g.chats.items) - 1)
 }
@@ -214,6 +227,7 @@ func (g *desktop) removeChat() {
 	if len(g.chats.items) == 1 {
 		s := g.activeChat().snapshot
 		s.History, s.Sessions = nil, nil
+		s.Connection.ContextTokens = 0
 		g.chats.items = append(g.chats.items, &chatTab{snapshot: s})
 	}
 	g.chats.items = append(g.chats.items[:i], g.chats.items[i+1:]...)

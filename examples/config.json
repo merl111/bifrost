@@ -8,6 +8,11 @@
       "model": "YOUR_LOCAL_MODEL"
     }
   },
+  "subagents": {"provider": "local", "model": ""},
+  "execution": {
+    "mode": "ask",
+    "allow": [["go", "test", "./..."]]
+  },
   "defaults": {
     "project": "demo",
     "provider": "local",

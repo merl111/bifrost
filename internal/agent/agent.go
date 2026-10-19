@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"bifrost/internal/environment"
+	"bifrost/internal/execpolicy"
 	"bifrost/internal/provider"
 	"bifrost/internal/workspace"
 )
@@ -44,12 +45,16 @@ type Tool struct {
 }
 
 type Config struct {
-	History         []provider.Message
-	PortableHistory bool
-	DecisionUsage   provider.Usage
-	DecisionNote    string
-	Instructions    string
-	ExtraTools      []Tool
+	ChildProfile, ChildModel string
+	RequireExecApproval      bool
+	AuthorizeExec            execpolicy.Authorizer
+	LoadDefaultSkills        bool
+	History                  []provider.Message
+	PortableHistory          bool
+	DecisionUsage            provider.Usage
+	DecisionNote             string
+	Instructions             string
+	ExtraTools               []Tool
 	// OnEvent is called synchronously. Callers should return promptly and
 	// cooperate with cancellation; Run cannot interrupt a blocked callback.
 	OnEvent func(Event)
@@ -117,8 +122,9 @@ func Run(ctx context.Context, cfg Config, prompt string) (result Result, err err
 		}()
 	}
 	if cfg.RunExternal != nil {
-		return cfg.RunExternal(ctx, cfg, prompt)
+		return runExternalTurn(ctx, cfg, prompt)
 	}
+
 	defs, err := toolCatalog(cfg)
 	if err != nil {
 		return Result{}, err
@@ -512,24 +518,7 @@ func runTool(ctx context.Context, w environment.Backend, cfg Config, name string
 		}
 		return boundedJSON(change, limit)
 	case toolExec:
-		if !cfg.ExecEnabled {
-			return toolErrorLimit(errors.New("command execution is disabled"), limit)
-		}
-		var argv []string
-		rawArgv, ok := args["argv"]
-		if !ok || json.Unmarshal(rawArgv, &argv) != nil || len(argv) == 0 {
-			return toolErrorLimit(errors.New("argv is required"), limit)
-		}
-		if _, ok := args["cwd"]; ok {
-			return toolErrorLimit(errors.New("cwd is fixed to the workspace root"), limit)
-		}
-		commandCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-		defer cancel()
-		res, err := w.Exec(commandCtx, environment.ExecRequest{Argv: argv, MaxOutputBytes: limit})
-		if err != nil {
-			return toolErrorLimit(err, limit)
-		}
-		return boundedJSON(map[string]any{"argv": res.Argv, "exit_code": res.ExitCode, "stdout": string(res.Stdout), "stderr": string(res.Stderr), "stdout_truncated": res.StdoutTruncated, "stderr_truncated": res.StderrTruncated, "cancelled": res.Cancelled}, limit)
+		return runAgentCommand(ctx, cfg, w, args, limit)
 	default:
 		return toolErrorLimit(fmt.Errorf("unknown tool %q", name), limit)
 	}

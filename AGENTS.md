@@ -177,7 +177,8 @@ substitute for tests or a declaration of production readiness.
   The current custom HTTPS JSON catalog is not equivalent to supporting arbitrary
   catalog APIs. Anonymous access and authentication requirements vary by source.
 - MCP OAuth login UI and TUI elicitation forms; editor LSP diagnostics overlays;
-  hunk-level staging; background PTY reattachment; complete approval UI;
+  hunk-level staging; background PTY reattachment; approval coverage beyond native
+  exec and the Cursor Native shell bridge;
   terminal pixel-image previews and automatic font configuration remain pending.
 - SSH child-agent isolation and daemon-backed SSH chat are unsupported. Worker
   binaries/guest tools and operating systems are not automatically provisioned.
@@ -193,7 +194,9 @@ substitute for tests or a declaration of production readiness.
   runtime support; macOS desktop automation is not implemented.
 - Native API/GitHub coverage is primarily fixtures. Desktop tests use injected
   commands; real graphical guests were not controlled. The QEMU probe is diskless.
-- Compaction is explicit; resume uses the last completed turn. There are no
+- Context compaction can be requested explicitly or triggered before a turn at
+  80% of a known window / 400 KiB of text. It retains the source session and only
+  adopts a smaller summary fork. Resume uses the last completed turn. There are no
   automatic provider retries. Worktrees start from committed refs, not dirty
   parent state; results are not automatically merged.
 - Artifact retention/GC, long-running resource quotas, and wider recovery/

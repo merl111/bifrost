@@ -11,6 +11,8 @@ import (
 )
 
 type desktop struct {
+	execution                                                                      executionView
+	contextMeter                                                                   cui.Widget
 	quick                                                                          quickSelection
 	explorer                                                                       fileExplorer
 	editorToolbar, editorSearchRow, editorUndoButton, editorRedoButton             cui.Widget
@@ -151,7 +153,7 @@ func (g *desktop) buildSidebar() {
 	g.newButton.SetSymbol(cui.SymbolPlus)
 	style(g.newButton, accentSoft, foreground, 9, false, 9)
 	nav := g.sidebar.Box(cui.Horizontal, 4)
-	g.conversationsTab = button(nav, "Chats", func() { g.selectNavigation(false) })
+	g.conversationsTab = button(nav, "History", func() { g.selectNavigation(false) })
 	g.conversationsTab.SetSymbol(cui.SymbolThread)
 	g.conversationsTab.Expand(true)
 	g.filesTab = button(nav, "Files", func() { g.selectNavigation(true) })
@@ -182,7 +184,7 @@ func (g *desktop) buildSidebar() {
 	for _, dest := range []struct {
 		name string
 		icon int
-	}{{"Project", cui.SymbolHome}, {"Tasks", cui.SymbolPoll}, {"Skills", cui.SymbolFile}, {"MCP servers", cui.SymbolPanel}} {
+	}{{"Project", cui.SymbolHome}, {"Tasks", cui.SymbolPoll}, {"Sub-agents", cui.SymbolPerson}, {"Installed skills", cui.SymbolFile}, {"MCP servers", cui.SymbolPanel}} {
 		name := dest.name
 		navigationButton(footer, name, dest.icon, func() { g.openWorkbench(name) })
 	}
@@ -277,6 +279,7 @@ func (g *desktop) buildComposer() {
 		control.IconSize(12)
 		style(control, elevated, foreground, 7, false, 6)
 	}
+	g.buildExecutionControl(selectors)
 	row := compose.Box(cui.Horizontal, 8)
 	iconButton(row, cui.SymbolAttach, "Choose a file to mention · Ctrl+P", g.showFiles)
 
@@ -288,7 +291,11 @@ func (g *desktop) buildComposer() {
 	g.send.SetSymbol(cui.SymbolArrowRight)
 	g.send.IconTrailing(true)
 	style(g.send, violet, background, 9, false, 9)
-	g.location = label(g.content, "Enter to send   ·   Shift+Enter for a new line", 10, muted)
+	footer := g.content.Wrap(8)
+	g.location = label(footer, "Enter to send   ·   Shift+Enter for a new line", 10, muted)
+	g.contextMeter = button(footer, "Context —", g.summarizeConversation)
+	style(g.contextMeter, 0, muted, 6, false, 4)
+	g.contextMeter.Font("", 10, 400)
 	g.composer.OnKey(func(key int, mods uint) bool {
 		if mods == 0 && g.mentionKey(key) {
 			return true

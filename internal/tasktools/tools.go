@@ -25,7 +25,8 @@ const (
 // Tools returns task graph tools bound to a scheduler. parent identifies the
 // currently executing task; an empty ID makes spawn_agent create a root task.
 type Options struct {
-	AllowWrite bool
+	DefaultProfile, DefaultModel string
+	AllowWrite                   bool
 }
 
 // Tools returns task graph tools bound to a scheduler. The default is
@@ -68,6 +69,7 @@ func ToolsWithOptions(s *tasks.Scheduler, parent domain.ID, options Options) []a
 					root = current.Root
 				}
 			}
+			in.applyDefaults(options)
 			spec := tasks.TaskSpec{ParentID: parent, Root: root, Prompt: in.Prompt, Model: in.Model, Profile: in.Profile, Mode: mode, BaseRef: in.BaseRef, Timeout: time.Duration(in.TimeoutMS) * time.Millisecond, StepBudget: in.StepBudget, MaxOutputBytes: in.MaxOutputBytes, PreserveWorktree: in.PreserveWorktree}
 			var task tasks.Task
 			var err error
@@ -157,6 +159,17 @@ type spawnInput struct {
 	MaxOutputBytes   int    `json:"max_output_bytes"`
 	PreserveWorktree bool   `json:"preserve_worktree"`
 }
+
+func (in *spawnInput) applyDefaults(options Options) {
+	requestedProfile := in.Profile
+	if in.Profile == "" {
+		in.Profile = options.DefaultProfile
+	}
+	if in.Model == "" && (requestedProfile == "" || requestedProfile == options.DefaultProfile) {
+		in.Model = options.DefaultModel
+	}
+}
+
 type idInput struct {
 	ID string `json:"id"`
 }

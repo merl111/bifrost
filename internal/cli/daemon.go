@@ -178,6 +178,10 @@ func daemonAgentHandler(base options, stderr io.Writer) daemon.Handler {
 			setup.sessionID = req.SessionID
 		}
 		cfg := setup.cfg
+		if err := loadDefaultSkills(opts, &cfg); err != nil {
+			return nil, err
+		}
+		applyWorkspaceProjectContext(opts, &cfg)
 		cfg.OnEvent = func(ev agent.Event) {
 			payloadValue := map[string]any{"kind": ev.Kind, "text": ev.Text, "provider": ev.Provider, "profile": ev.Profile, "model": ev.Model}
 			if ev.ID != "" {

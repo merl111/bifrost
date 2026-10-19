@@ -51,7 +51,7 @@ func AttachTaskTools(cfg *agent.Config, scheduler *tasks.Scheduler, parent domai
 			filtered = append(filtered, tool)
 		}
 	}
-	cfg.ExtraTools = append(filtered, tasktools.ToolsWithOptions(scheduler, parent, tasktools.Options{AllowWrite: allowWrite})...)
+	cfg.ExtraTools = append(filtered, tasktools.ToolsWithOptions(scheduler, parent, tasktools.Options{AllowWrite: allowWrite, DefaultProfile: cfg.ChildProfile, DefaultModel: cfg.ChildModel})...)
 }
 
 // AttachTaskRuntime is the lazy form used when the scheduler's runner needs

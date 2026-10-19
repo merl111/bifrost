@@ -14,6 +14,7 @@ import (
 	"bifrost/internal/agent"
 	"bifrost/internal/cursorclient"
 	"bifrost/internal/environment"
+	"bifrost/internal/execpolicy"
 	"bifrost/internal/process"
 	"bifrost/internal/provider"
 	"bifrost/internal/workspace"
@@ -79,7 +80,7 @@ func nativeCursorTurn(store *accounts.Store, a accounts.Account) func(context.Co
 			Checkpoint:     saved.Checkpoint,
 			Blobs:          blobs,
 			Root:           cfg.Root,
-			Files:          backendFiles{cfg.Backend},
+			Files:          backendFiles{backend: cfg.Backend, authorize: cfg.AuthorizeExec},
 			AllowWrite:     cfg.WriteEnabled,
 			AllowExec:      cfg.ExecEnabled,
 			MaxOutput:      cfg.MaxOutputBytes,
@@ -185,7 +186,10 @@ func cursorTranscript(history []provider.Message, prompt string) string {
 	return b.String()
 }
 
-type backendFiles struct{ backend environment.Backend }
+type backendFiles struct {
+	backend   environment.Backend
+	authorize execpolicy.Authorizer
+}
 
 func (a backendFiles) List(ctx context.Context, path string) ([]workspace.Entry, error) {
 	return a.backend.List(ctx, path)
@@ -197,6 +201,11 @@ func (a backendFiles) Write(ctx context.Context, path string, expected *workspac
 	return a.backend.Write(ctx, path, expected, content)
 }
 func (a backendFiles) Exec(ctx context.Context, argv []string, cwd string, maxOutput int) (process.Result, error) {
+	if a.authorize != nil {
+		if err := a.authorize(ctx, argv, a.backend.Identity().Root, cwd); err != nil {
+			return process.Result{}, err
+		}
+	}
 	return a.backend.Exec(ctx, environment.ExecRequest{Argv: argv, CWD: cwd, MaxOutputBytes: maxOutput})
 }
 func (a backendFiles) Delete(ctx context.Context, path string) (string, error) {

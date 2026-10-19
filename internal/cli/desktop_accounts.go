@@ -31,6 +31,8 @@ func (d *DesktopWorkspace) SwitchModel(ctx context.Context, account, model strin
 }
 
 func (d *DesktopWorkspace) Compact(ctx context.Context) error {
+	d.conversations.Lock()
+	defer d.conversations.Unlock()
 	_, _, _, _, err := d.chat.compactCurrentSession(ctx)
 	return err
 }

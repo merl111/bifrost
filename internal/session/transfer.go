@@ -54,18 +54,34 @@ func (s *Store) Import(in io.Reader, root string) (Session, error) {
 // Compact forks a conversation using a caller-reviewed summary. The source
 // remains intact; retained turns never split an assistant/tool result batch.
 func (s *Store) Compact(id domain.ID, summary string, keepTurns int) (Session, error) {
-	if strings.TrimSpace(summary) == "" || len(summary) > 256<<10 {
-		return Session{}, errors.New("summary must contain 1..262144 bytes")
-	}
-	if keepTurns < 0 || keepTurns > 100 {
-		return Session{}, errors.New("keep turns must be 0..100")
-	}
 	source, err := s.Load(id)
 	if err != nil {
 		return Session{}, err
 	}
+	messages, err := CompactedMessages(source, summary, keepTurns)
+	if err != nil {
+		return Session{}, err
+	}
+	created, err := s.Create(source.Root, source.ProviderFingerprint)
+	if err != nil {
+		return Session{}, err
+	}
+	created.Messages = messages
+	created.Status = StatusCompleted
+	return s.Save(created, created.Revision)
+}
+
+// CompactedMessages previews a summary and whole retained turns without creating a session.
+// Opaque continuations and executable tool calls become portable transcript text.
+func CompactedMessages(source Session, summary string, keepTurns int) ([]provider.Message, error) {
+	if strings.TrimSpace(summary) == "" || len(summary) > 256<<10 {
+		return nil, errors.New("summary must contain 1..262144 bytes")
+	}
+	if keepTurns < 0 || keepTurns > 100 {
+		return nil, errors.New("keep turns must be 0..100")
+	}
 	if source.Status != StatusCompleted {
-		return Session{}, errors.New("only complete sessions can be compacted")
+		return nil, errors.New("only complete sessions can be compacted")
 	}
 	cut := len(source.Messages)
 	seen := 0
@@ -83,20 +99,15 @@ func (s *Store) Compact(id domain.ID, summary string, keepTurns int) (Session, e
 			}
 		}
 	}
-	messages := []provider.Message{{Role: provider.RoleUser, Content: fmt.Sprintf("Reviewed summary of earlier conversation (source %s):\n%s", id, summary)}}
+	messages := []provider.Message{{Role: provider.RoleUser, Content: fmt.Sprintf("Summary of earlier conversation (source %s):\n%s", source.ID, summary)}}
 	if cut < len(source.Messages) {
-		messages = append(messages, cloneSession(source).Messages[cut:]...)
+		messages = append(messages, provider.PortableHistory(cloneSession(source).Messages[cut:])...)
 	}
 	if err := validateMessages(messages); err != nil {
-		return Session{}, err
+		return nil, err
 	}
-	created, err := s.Create(source.Root, source.ProviderFingerprint)
-	if err != nil {
-		return Session{}, err
-	}
-	created.Messages = messages
-	created.Status = StatusCompleted
-	return s.Save(created, created.Revision)
+
+	return messages, nil
 }
 
 func isToolImageObservation(m provider.Message) bool {

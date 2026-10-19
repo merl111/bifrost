@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"bifrost/internal/agent"
 	"bifrost/internal/domain"
@@ -149,7 +150,11 @@ func EstimateSessionTokens(messages []provider.Message, instructions string, pro
 func BuildConversationSummary(ctx context.Context, cfg agent.Config, messages []provider.Message) string {
 	var transcript strings.Builder
 	maxBytes := 48 << 10
-	for _, m := range messages {
+	excerpt := messages
+	if len(messages) > 40 {
+		excerpt = append(append([]provider.Message(nil), messages[:8]...), messages[len(messages)-32:]...)
+	}
+	for _, m := range excerpt {
 		if transcript.Len() >= maxBytes {
 			break
 		}
@@ -163,20 +168,22 @@ func BuildConversationSummary(ctx context.Context, cfg agent.Config, messages []
 			content = "[called tools: " + strings.Join(names, ", ") + "]"
 		}
 		if len(content) > 1200 {
-			content = content[:1200] + "…"
+			content = strings.ToValidUTF8(content[:1200], "") + "…"
 		}
 		if content != "" {
 			transcript.WriteString(fmt.Sprintf("%s: %s\n", role, content))
 		}
 	}
 
-	if cfg.Provider != nil && transcript.Len() > 0 {
+	if cfg.Provider != nil && transcript.Len() > 0 && ctx.Err() == nil {
+		summaryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
 		sumReq := provider.Request{
 			Model: cfg.ModelName,
 			Messages: []provider.Message{
 				{
 					Role:    provider.RoleSystem,
-					Content: "Summarize the earlier software engineering conversation concisely. Preserve key user requirements, architectural decisions, files modified, and open tasks.",
+					Content: "Summarize this bounded excerpt of the earlier software engineering conversation concisely; do not invent omitted details. Preserve key user requirements, architectural decisions, files modified, and open tasks.",
 				},
 				{
 					Role:    provider.RoleUser,
@@ -184,7 +191,7 @@ func BuildConversationSummary(ctx context.Context, cfg agent.Config, messages []
 				},
 			},
 		}
-		if resp, err := cfg.Provider.Complete(ctx, sumReq); err == nil && strings.TrimSpace(resp.Message.Content) != "" {
+		if resp, err := cfg.Provider.Complete(summaryCtx, sumReq); err == nil && strings.TrimSpace(resp.Message.Content) != "" {
 			return strings.TrimSpace(resp.Message.Content)
 		}
 	}
@@ -198,25 +205,45 @@ func BuildConversationSummary(ctx context.Context, cfg agent.Config, messages []
 		}
 		firstLine := strings.Split(text, "\n")[0]
 		if len(firstLine) > 160 {
-			firstLine = firstLine[:159] + "…"
+			firstLine = strings.ToValidUTF8(firstLine[:159], "") + "…"
+		}
+		if len(bullets) == 24 && (m.Role == provider.RoleUser || m.Role == provider.RoleAssistant) {
+			copy(bullets[6:], bullets[7:])
+			bullets = bullets[:23]
 		}
 		if m.Role == provider.RoleUser {
 			bullets = append(bullets, "- User: "+firstLine)
 		} else if m.Role == provider.RoleAssistant {
 			bullets = append(bullets, "- Assistant: "+firstLine)
 		}
-		if len(bullets) >= 24 {
-			break
-		}
 	}
 	if len(bullets) == 0 {
 		return "Earlier conversation turns were compacted to free context window space."
 	}
-	return "Summary of compacted earlier turns:\n" + strings.Join(bullets, "\n")
+	return "Local condensed transcript of earlier turns (original history remains saved):\n" + strings.Join(bullets, "\n")
+}
+
+// Keep recent whole turns when possible, but do not claim success if context grows.
+func compactReducedSession(ctx context.Context, st *session.Store, current session.Session, summary string) (session.Session, error) {
+	before := EstimateSessionTokens(current.Messages, "", "")
+	for keep := 2; keep >= 0; keep-- {
+		messages, err := session.CompactedMessages(current, summary, keep)
+		if err != nil {
+			return current, err
+		}
+		if EstimateSessionTokens(messages, "", "") >= before {
+			continue
+		}
+		if err := ctx.Err(); err != nil {
+			return current, err
+		}
+		return st.Compact(current.ID, summary, keep)
+	}
+	return current, errors.New("conversation is already compact; the summary would not reduce context")
 }
 
 func maybeAutoCompactSession(ctx context.Context, st *session.Store, current session.Session, cfg agent.Config, prompt string) session.Session {
-	if len(current.Messages) < 6 {
+	if len(current.Messages) < 6 || current.Status != session.StatusCompleted || ctx.Err() != nil {
 		return current
 	}
 	maxTokens := provider.ModelContextWindowTokens("", cfg.ModelName)
@@ -238,14 +265,15 @@ func maybeAutoCompactSession(ctx context.Context, st *session.Store, current ses
 			Text: fmt.Sprintf("context saturation high (%d/%d tokens) — auto-compacting and summarizing earlier turns…", usedTokens, maxTokens),
 		})
 	}
-	if current.Status != session.StatusCompleted {
-		if saved, err := saveSessionStatus(st, current, session.StatusCompleted); err == nil {
-			current = saved
-		}
-	}
 	summary := BuildConversationSummary(ctx, cfg, current.Messages)
-	compacted, err := st.Compact(current.ID, summary, 2)
+	if ctx.Err() != nil {
+		return current
+	}
+	compacted, err := compactReducedSession(ctx, st, current, summary)
 	if err != nil {
+		if cfg.OnEvent != nil {
+			cfg.OnEvent(agent.Event{Kind: "status", Text: "Context summarization skipped: " + err.Error()})
+		}
 		return current
 	}
 	if cfg.OnEvent != nil {
@@ -258,21 +286,42 @@ func maybeAutoCompactSession(ctx context.Context, st *session.Store, current ses
 	return compacted
 }
 
-func runSessionTurn(ctx context.Context, stateDir string, st *session.Store, current session.Session, cfg agent.Config, prompt string) (session.Session, agent.Result, error) {
-	current = maybeAutoCompactSession(ctx, st, current, cfg, prompt)
+// lockSessionRevision guards both the source and any compacted fork against another process.
+func lockSessionRevision(stateDir string, st *session.Store, current session.Session) (func() error, error) {
 	unlock, err := acquireSessionTurn(stateDir, current.ID)
+	if err != nil {
+		return nil, err
+	}
+	fresh, err := st.Load(current.ID)
+	if err == nil && fresh.Revision != current.Revision {
+		err = fmt.Errorf("%w: got revision %d, want %d", ErrSessionStale, fresh.Revision, current.Revision)
+	}
+	if err != nil {
+		_ = unlock()
+		return nil, err
+	}
+	return unlock, nil
+}
+
+func runSessionTurn(ctx context.Context, stateDir string, st *session.Store, current session.Session, cfg agent.Config, prompt string) (session.Session, agent.Result, error) {
+	unlock, err := lockSessionRevision(stateDir, st, current)
 	if err != nil {
 		return current, agent.Result{}, err
 	}
 	defer unlock()
-	fresh, err := st.Load(current.ID)
-	if err != nil {
+	sourceID := current.ID
+	current = maybeAutoCompactSession(ctx, st, current, cfg, prompt)
+	if current.ID != sourceID {
+		release, lockErr := lockSessionRevision(stateDir, st, current)
+		if lockErr != nil {
+			return current, agent.Result{}, lockErr
+		}
+		defer release()
+	}
+
+	if err := ctx.Err(); err != nil {
 		return current, agent.Result{}, err
 	}
-	if fresh.Revision != current.Revision {
-		return current, agent.Result{}, fmt.Errorf("%w: got revision %d, want %d", ErrSessionStale, fresh.Revision, current.Revision)
-	}
-	current = fresh
 	if updatedCfg, uncertain := addResumeNoticeToConfig(cfg, current); uncertain {
 		cfg = updatedCfg
 		if cfg.OnEvent != nil {

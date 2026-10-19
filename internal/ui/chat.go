@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"bifrost/internal/execpolicy"
 	"context"
 	"errors"
 	"strings"
@@ -12,6 +13,7 @@ import (
 // ChatEvent is one provider event delivered to the local UI. Delta and final
 // contain assistant text; tool and status contain activity text.
 type ChatEvent struct {
+	Approval   *execpolicy.Request `json:"-"`
 	Kind       string
 	Text       string
 	ID         string
@@ -105,6 +107,10 @@ func waitChatStream(stream *chatStream, id uint64) tea.Cmd {
 }
 
 func (m *Model) appendChatEvent(event ChatEvent) {
+	if event.Approval != nil {
+		m.executionApprovals = append(m.executionApprovals, event.Approval)
+		return
+	}
 	kind := strings.ToLower(strings.TrimSpace(event.Kind))
 	if kind == "" {
 		kind = "status"
@@ -494,6 +500,10 @@ func (m *Model) handleBackgroundTabStream(msg chatStreamMsg) tea.Cmd {
 			return nil
 		}
 		ev := msg.item.event
+		if ev.Approval != nil {
+			m.executionApprovals = append(m.executionApprovals, ev.Approval)
+			return waitChatStream(msg.stream, msg.id)
+		}
 		kind := strings.ToLower(strings.TrimSpace(ev.Kind))
 		if kind == "connection" {
 			return waitChatStream(msg.stream, msg.id)

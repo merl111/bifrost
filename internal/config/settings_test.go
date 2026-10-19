@@ -74,3 +74,26 @@ func TestSettingsRejectsSSHValuesRuntimeWouldReject(t *testing.T) {
 		t.Fatal("accepted tab in SSH target")
 	}
 }
+
+func TestSubagentSettingsAndEmptyProjectSkillOverride(t *testing.T) {
+	cfg := DefaultSettings()
+	cfg.Providers["worker"] = ProviderSettings{Kind: "chat-completions", BaseURL: "http://localhost:1", Model: "worker-default"}
+	cfg.Subagents = SubagentSettings{Provider: "worker", Model: "small"}
+	cfg.Defaults.Skills = []string{"global-skill"}
+	cfg.Projects["demo"] = ProjectDefaults{Skills: []string{}}
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := SaveSettings(path, cfg, false); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := LoadSettings(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Subagents.Model != "small" || loaded.Projects["demo"].Skills == nil || len(loaded.ForProject("demo").Skills) != 0 {
+		t.Fatal("configuration lost defaults or explicit empty skill override")
+	}
+	loaded.Subagents.Provider = "missing"
+	if err := loaded.Validate(); err == nil {
+		t.Fatal("unknown child profile accepted")
+	}
+}

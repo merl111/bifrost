@@ -95,6 +95,8 @@ func (g *desktop) refreshBusy() {
 	g.newButton.SetEnabled(!g.operationBusy)
 	g.profiles.SetEnabled(!g.busy)
 	g.modelName.SetEnabled(!g.busy)
+	g.execution.mode.SetEnabled(!g.busy)
+	g.contextMeter.SetEnabled(!g.busy && snapshotSession(t.snapshot) != "")
 	g.sessionList.SetEnabled(!g.operationBusy && g.connected)
 	if t.cancel != nil {
 		g.activity.SetText("Bifrost is working…")
@@ -125,10 +127,13 @@ func (g *desktop) syncRuntimeSnapshot(s cli.DesktopSnapshot) {
 		}
 		tab.snapshot.Accounts = s.Accounts
 		if tab.snapshot.Connection.Account != s.Connection.Account || tab.snapshot.Connection.Model != s.Connection.Model || tab.snapshot.Connection.Connected != s.Connection.Connected {
+			used := tab.snapshot.Connection.ContextTokens
 			tab.snapshot.Connection = s.Connection
+			tab.snapshot.Connection.ContextTokens = used
 		}
 		tab.snapshot.WriteEnabled = s.WriteEnabled
 		tab.snapshot.ExecEnabled = s.ExecEnabled
+		tab.snapshot.Execution = s.Execution
 	}
 }
 
@@ -137,6 +142,7 @@ func (g *desktop) displaySnapshot(s cli.DesktopSnapshot) {
 	g.refreshChatTabs()
 	g.accounts, g.sessions, g.connected = s.Accounts, s.Sessions, s.Connection.Connected
 	g.updateQuickSelection(s)
+	g.updateExecutionControl(s)
 
 	g.filterNavigation()
 	g.transcript = transcript{}
@@ -166,6 +172,7 @@ func enabledText(v bool) string {
 
 func (g *desktop) updateConnection(info ui.ConnectionInfo) {
 	g.connected = info.Connected
+	g.updateContextMeter(info)
 	if info.Connected {
 		g.connection.SetText(shortText("●  "+info.Model, 32))
 		g.connection.Tooltip(safeText(info.Account + " · " + g.ws.Root))

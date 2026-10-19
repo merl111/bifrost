@@ -64,6 +64,10 @@ func (g *desktop) sendPrompt() {
 }
 
 func (g *desktop) receiveChatEvent(origin *chatTab, event ui.ChatEvent) {
+	if event.Approval != nil {
+		g.queueExecutionApproval(event.Approval)
+		return
+	}
 	if event.Kind == "session" {
 		found := false
 		for i := range origin.snapshot.Sessions {

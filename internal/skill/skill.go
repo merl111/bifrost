@@ -331,6 +331,15 @@ func extractSkillArchive(input io.Reader, destination string) error {
 	return nil
 }
 
+// ListLocal returns only this scope, including copies shadowed in other scopes.
+func (m *Manager) ListLocal() ([]Skill, error) {
+	if m == nil {
+		return nil, errors.New("skill manager is nil")
+	}
+	local := &Manager{root: m.root, scope: m.scope}
+	return local.List()
+}
+
 // List returns installed skills in stable name order.
 func (m *Manager) List() ([]Skill, error) {
 	if m == nil {

@@ -1,0 +1,15 @@
+{
+  "servers": [
+    {
+      "name": "local-tools",
+      "command": ["/absolute/path/to/mcp-server", "--workspace", "/absolute/path/to/project"]
+    },
+    {
+      "name": "remote-tools",
+      "url": "https://mcp.example.com/mcp",
+      "headers": [
+        {"name": "Authorization", "env": "MY_MCP_AUTHORIZATION"}
+      ]
+    }
+  ]
+}

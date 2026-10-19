@@ -23,6 +23,7 @@ func (g *desktop) buildSkillsPanel(parent cui.Widget) {
 	s.filter.SetSelected(0)
 	s.filter.OnAction(func(cui.Widget) { g.renderInstalledSkills() })
 	button(bar, "Refresh", g.loadInstalledSkills)
+	button(bar, "Install from folder…", func() { g.chooseExtensionPath(true) })
 	button(bar, "Discover skills…", func() { g.openWorkbench("Skills") })
 	s.state = label(parent, "", 11, muted)
 	label(parent, "The AI searches available descriptions and loads relevant skills for each task. Auto-load always includes selected instructions. Scripts still follow command permissions.", 11, muted)

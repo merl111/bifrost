@@ -24,7 +24,10 @@ type marketView struct {
 func (g *desktop) buildMarketPanel(parent cui.Widget) {
 	m := &g.workbench.market
 	m.installed = make(map[string]string)
-	button(parent, "Installed skills & auto-load", func() { g.openWorkbench("Installed skills") })
+	custom := parent.Wrap(8)
+	button(custom, "Installed skills & auto-load", func() { g.openWorkbench("Installed skills") })
+	button(custom, "Install skill from folder…", func() { g.chooseExtensionPath(true) })
+	button(custom, "Use MCP config…", func() { g.chooseExtensionPath(false) })
 	bar := parent.Box(cui.Horizontal, 8)
 	m.kind = bar.Select([]string{"Skills", "MCP servers"})
 	m.kind.SetSelected(0)

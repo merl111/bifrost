@@ -1,5 +1,47 @@
 # Current implementation evidence — 19 October 2026
 
+## Custom skill installs and MCP config selection — 19 October 2026
+
+The GUI and TUI chat composers now recognize registered `/commands`, alongside
+colon commands. `/skill install` accepts an explicit local folder or the existing
+catalog ID; `/skill install-git` exposes the existing safe Git installer.
+Project/global scope and quoted paths are shared between frontends. These
+commands work offline and do not send their contents to a model. Local/Git
+installation leaves activation to task selection or configured auto-load.
+
+`/mcp config PATH` validates a separate MCP endpoint file and saves its reference
+with settings revision checks. `/mcp config` shows the saved server list.
+Validation shares endpoint and alias rules with connection startup and does not
+launch commands or require credential values. Startup honors named-project,
+folder-identity and global defaults; explicit `--mcp-config` remains authoritative.
+Changes require restart. GUI file/folder pickers prepare editable chat commands.
+See [examples/mcp.json](../examples/mcp.json) and the README command reference.
+
+Verification completed: full root race suite (`make test`), desktop race suite,
+both modules' vet checks, focused race tests after cleanup, rebuilt native GUI
+and CGO-disabled TUI. `TestNativeCustomExtensions` passed under Xvfb with fatal
+GTK criticals: offline install, quoted paths, persisted project MCP selection,
+and retained invalid command drafts. A loopback MCP fixture confirms saved
+folder defaults actually connect on startup. Tests use temporary state and
+local/Git/HTTP fixtures; no third-party MCP account or paid inference was used.
+The rebuilt TUI passed a live PTY launch, resize (80×24, 120×36, 160×48, 60×20),
+command palette and clean-exit smoke.
+
+Native test investigation: the default-size Xvfb run timed out in the existing
+640×600 resize phase. The standard 4K run passed `TestNativeWorkspace` in 54s,
+then the old unanchored test selector also launched `TestNativeWorkspaceControls`
+in the same process and faulted in GTK GL context initialization. The smoke
+recipe now runs workspace, controls and custom-extension tests in separate
+processes with exact test names, respecting GTK's process/thread lifetime.
+The corrected `G_DEBUG=fatal-criticals make desktop-smoke` passed all three
+fixtures: workspace 53.93s, controls 3.34s, custom extensions 0.93s. GTK layout
+warnings were emitted, but the asserted compact/large workspace sizes passed.
+
+The structural quality gate remains non-clean: comparison to `f83fdec` reports
+10 gating findings (8 churn, 1 dispatcher complexity, 1 dispatcher verbosity),
+plus 13 new-symbol findings, including test entry points classified as dead code.
+Functional verification does not establish a clean structural gate.
+
 ## Provider-switch crash and model discovery — 19 October 2026
 
 Reproduced a GTK invalid-object fault through real mouse provider selection.

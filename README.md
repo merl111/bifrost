@@ -578,6 +578,69 @@ Native coding tools include rooted reads/listing/search, exact edits, writes, re
 
 ## Skills, MCP, hooks, and language servers
 
+### Custom skills and MCP from chat
+
+In either the native GUI or TUI composer, send these as commands. They also work
+without a connected model; `:` remains an alias for `/`.
+
+```text
+/skill install "./skills/my skill"
+/skill install ~/my-skills/review --scope global
+/skill install-git https://github.com/owner/repo.git main skills/example --scope project
+/skill install openai-skill-creator
+/mcp config "./mcp.json"
+/mcp config "/path/to/shared-mcp.json" --scope global
+/mcp config
+```
+
+`/skill install` accepts a catalog ID or a local folder containing `SKILL.md`.
+Prefix relative folders with `./` or `../`; names such as `catalog/skill` remain
+catalog IDs. Quote paths with spaces. Relative paths resolve against the open
+workspace, and `~/` resolves against your home directory. Arguments are literal;
+chat commands do not expand shell variables or execute shell substitutions.
+`install-git` takes a repository, explicit ref, and subdirectory and records the
+resolved Git commit. Existing installed skills are not overwritten. Project is
+the default scope; global skills are available across projects. Installation is
+inert: the AI can discover the skill on its next turn, or you can configure
+**Installed skills → Auto-load**. Vendor backends have their own tool limitations.
+
+The GUI also offers **Install skill from folder…** and **Use MCP config…** in
+Skills/MCP, plus **Install from folder…** in Installed skills. File selection
+prepares an editable chat command, including its scope, for you to send.
+
+MCP uses a separate JSON file; copy and edit [examples/mcp.json](examples/mcp.json):
+
+```json
+{
+  "servers": [
+    {"name": "local", "command": ["/absolute/path/to/server", "--flag"]},
+    {
+      "name": "remote",
+      "url": "https://mcp.example.com/mcp",
+      "headers": [{"name": "Authorization", "env": "MY_MCP_AUTHORIZATION"}]
+    }
+  ]
+}
+```
+
+Each entry needs a unique name and either an argv `command` (stdio) or a `url`
+(Streamable HTTP). HTTP is allowed only on loopback; other URLs require HTTPS.
+The environment variable holds the complete header value, including `Bearer `
+where required. Do not put credential values in this file. Bifrost's schema uses
+`servers`, not another client's `mcpServers` schema.
+
+`/mcp config PATH` validates the file without launching its servers, then saves a
+revision-checked reference in Bifrost settings. **Restart Bifrost to connect**;
+editing the file also requires a restart. `/mcp config` shows the saved selection
+and configured server names, not live connection status. Named projects share
+MCP defaults across their linked repositories; folder-only workspaces use a
+stable `workspace-<root hash>` settings key. Global defaults apply where no
+project override exists. An explicit `--mcp-config` still takes precedence.
+Native API providers use these servers; vendor CLI backends manage their own MCP
+connections. To deselect a saved file, clear its `mcp_config` value in Settings;
+an empty `{"servers": []}` file provides an explicit empty server list.
+
+
 ```sh
 bifrost --project myapp skill install /path/to/skill
 bifrost --project myapp skill install-git https://github.com/owner/repo.git main skills/example

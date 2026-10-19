@@ -8,7 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-const skillCommandUsage = "usage: :skill browse | install ID [--scope project|global]"
+const skillCommandUsage = "usage: :skill browse | install ID_OR_PATH [--scope project|global] | install-git REPOSITORY REF SUBDIRECTORY [--scope project|global]"
 
 // skillPaletteSuggestions adds catalog-backed completions to the static
 // command suggestions. Marketplace IDs are deliberately sourced from the

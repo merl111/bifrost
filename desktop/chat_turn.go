@@ -11,7 +11,7 @@ import (
 
 func (g *desktop) sendPrompt() {
 	prompt := strings.TrimSpace(g.composer.Text())
-	if strings.HasPrefix(prompt, ":") {
+	if ui.IsChatCommand(prompt) {
 		if err := g.executeCommand(prompt); err != nil {
 			g.showError(err)
 		} else if strings.TrimSpace(g.composer.Text()) == prompt {

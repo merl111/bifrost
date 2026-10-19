@@ -24,7 +24,7 @@ func workspaceUIOptions(opts options, settings config.Settings) ([]ui.Option, er
 		return nil, err
 	}
 	options := append(appearanceOptions(settings.UI), settingsOption)
-	options = append(options, ui.WithLayoutSettingsChange(workspaceLayoutCallback(opts)), ui.WithMarketplace(market))
+	options = append(options, ui.WithLayoutSettingsChange(workspaceLayoutCallback(opts)), ui.WithMarketplace(market), ui.WithExtensions(workspaceExtensionCommand(opts)))
 	return options, nil
 }
 

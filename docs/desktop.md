@@ -415,3 +415,16 @@ Shell policy is enforced before native exec and at the Cursor Native filesystem
 bridge. Detached approval requests are bounded by the originating turn's lifetime.
 Vendor CLI backends cannot bypass this policy through delegation: unsupported command
 approval is rejected at the external-run boundary. Headless runs do not fabricate approval.
+
+### Custom extensions from chat — 19 October 2026
+
+Both composers accept `/skill install "./folder" [--scope project|global]`,
+`/skill install-git REPOSITORY REF SUBDIRECTORY [--scope project|global]`, and
+`/mcp config [PATH] [--scope project|global]`. Catalog IDs keep their existing
+preview-before-install flow. Local/Git installs use the same bounded snapshot
+installer as the CLI and never activate instructions as an installation effect.
+Custom extension operations run in workers; their result stays readable in the
+source panel. Invalid syntax retains the draft, and these commands work offline.
+The Skills/MCP pages expose native file/folder pickers that prepare editable
+commands. MCP selection validates without connecting, persists with revision
+checks, and takes effect at restart. See the [configuration examples](../README.md#custom-skills-and-mcp-from-chat).

@@ -88,7 +88,7 @@ func (g *desktop) refreshBusy() {
 	}
 	t := g.activeChat()
 	g.turnCancel = t.cancel
-	g.send.SetEnabled(!g.operationBusy && t.cancel == nil && g.connected)
+	g.send.SetEnabled(!g.operationBusy && t.cancel == nil && (g.connected || ui.IsChatCommand(g.composer.Text())))
 	g.stop.SetEnabled(t.cancel != nil)
 	g.stop.SetVisible(t.cancel != nil)
 	g.activityToggle.SetEnabled(g.transcript.latestActivity() >= 0)

@@ -68,7 +68,10 @@ func configureAgentSetup(ctx context.Context, opts options, args []string, stder
 	if err != nil {
 		return agentSetup{cleanup: cleanup}, err
 	}
-	defaults := settings.ForProject(opts.project)
+	defaults, err := workspaceRunDefaults(opts, settings)
+	if err != nil {
+		return agentSetup{cleanup: cleanup}, err
+	}
 	profile := defaults.Provider
 	if profile == "" {
 		profile = settings.ActiveProvider

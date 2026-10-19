@@ -24,6 +24,7 @@ type DesktopWorkspace struct {
 	conversations sync.RWMutex
 	Settings      ui.SettingsCallbacks
 	Marketplace   ui.MarketplaceCallbacks
+	Extensions    ui.ExtensionCommand
 	Tasks         ui.TaskMonitorCallbacks
 	Projects      ui.ProjectCallbacks
 	Appearance    config.UISettings
@@ -121,7 +122,7 @@ func OpenDesktopWorkspace(ctx context.Context, args []string, stderr io.Writer) 
 	}
 	ok = true
 	return &DesktopWorkspace{Root: setup.cfg.Root, Backend: backend, chat: chat, cleanup: cleanup,
-		Settings: settingsCallbacks, Marketplace: market, Tasks: monitor.callbacks(opts),
+		Settings: settingsCallbacks, Marketplace: market, Extensions: workspaceExtensionCommand(opts), Tasks: monitor.callbacks(opts),
 		Projects: workspaceProjectCallbacks(opts, setup.cfg.Root), Appearance: settings.UI,
 		SaveLayout: workspaceLayoutCallback(opts), StateDir: setup.cfg.StateDir, TerminalArgv: terminalArgv, TerminalDir: terminalDir}, nil
 }

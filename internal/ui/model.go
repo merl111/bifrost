@@ -208,6 +208,8 @@ type Model struct {
 	settingsEditor                                                               settingsEditorState
 	connection                                                                   ConnectionInfo
 	catalogModels                                                                map[string]catalogModelInfo
+	extensions                                                                   ExtensionCommand
+	extensionCancel                                                              context.CancelFunc
 	marketplace                                                                  MarketplaceCallbacks
 	marketplaceOpen, marketplaceSearching                                        bool
 	marketplaceQuery, marketplacePreview, marketplacePreviewID, marketplaceError string
@@ -546,6 +548,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.updateMarketplaceList(msg)
 	case marketplacePreviewMsg:
 		return m, m.updateMarketplacePreview(msg)
+	case extensionResultMsg:
+		return m, m.updateExtension(msg)
 	case marketplaceInstallMsg:
 		return m, m.updateMarketplaceInstall(msg)
 	case projectStatusMsg:
@@ -812,6 +816,7 @@ func (m *Model) Close() error {
 	reviewCancel := m.reviewCancel
 	inlineCancel := m.inlineCancel
 	taskCancel := m.taskCancel
+	extensionCancel := m.extensionCancel
 	marketplaceCancel := m.marketplaceCancel
 	projectCancel := m.projectCancel
 	accountCancel := m.accountCancel
@@ -827,6 +832,9 @@ func (m *Model) Close() error {
 	}
 	if taskCancel != nil {
 		taskCancel()
+	}
+	if extensionCancel != nil {
+		extensionCancel()
 	}
 	if marketplaceCancel != nil {
 		marketplaceCancel()

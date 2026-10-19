@@ -515,27 +515,40 @@ func (s *Session) itemLimit() int {
 	return DefaultMaxTools
 }
 
-func makeTransport(endpoint Endpoint, stderr io.Writer) (mcp.Transport, error) {
+// ValidateEndpoint checks configuration without resolving credentials or connecting.
+func ValidateEndpoint(endpoint Endpoint) error {
 	if endpoint.URL != "" && len(endpoint.Command) > 0 {
-		return nil, fmt.Errorf("%w: URL and Command are mutually exclusive", ErrInvalidEndpoint)
+		return fmt.Errorf("%w: URL and Command are mutually exclusive", ErrInvalidEndpoint)
 	}
 	if endpoint.URL == "" && len(endpoint.Command) == 0 {
-		return nil, fmt.Errorf("%w: URL or Command is required", ErrInvalidEndpoint)
+		return fmt.Errorf("%w: URL or Command is required", ErrInvalidEndpoint)
 	}
 	if len(endpoint.Command) > 0 && len(endpoint.Headers) > 0 {
-		return nil, fmt.Errorf("%w: HTTP headers require a URL endpoint", ErrInvalidEndpoint)
+		return fmt.Errorf("%w: HTTP headers require a URL endpoint", ErrInvalidEndpoint)
 	}
 	if endpoint.URL != "" {
 		u, err := url.Parse(endpoint.URL)
 		if err != nil || u.Scheme == "" || u.Host == "" {
-			return nil, fmt.Errorf("%w: URL %q", ErrInvalidEndpoint, endpoint.URL)
+			return fmt.Errorf("%w: URL %q", ErrInvalidEndpoint, endpoint.URL)
 		}
 		if u.User != nil || u.Fragment != "" {
-			return nil, fmt.Errorf("%w: URL userinfo and fragments are not allowed", ErrInvalidEndpoint)
+			return fmt.Errorf("%w: URL userinfo and fragments are not allowed", ErrInvalidEndpoint)
 		}
 		if u.Scheme != "https" && !(u.Scheme == "http" && isLoopback(u.Hostname())) {
-			return nil, fmt.Errorf("%w: MCP HTTP requires HTTPS except loopback HTTP", ErrInvalidEndpoint)
+			return fmt.Errorf("%w: MCP HTTP requires HTTPS except loopback HTTP", ErrInvalidEndpoint)
 		}
+	} else if strings.TrimSpace(endpoint.Command[0]) == "" {
+		return fmt.Errorf("%w: command is empty", ErrInvalidEndpoint)
+	}
+	return ValidateHeaderRefs(endpoint.Headers)
+}
+
+func makeTransport(endpoint Endpoint, stderr io.Writer) (mcp.Transport, error) {
+	if err := ValidateEndpoint(endpoint); err != nil {
+		return nil, err
+	}
+	if endpoint.URL != "" {
+		u, _ := url.Parse(endpoint.URL)
 		headers, err := resolveHeaders(endpoint.Headers)
 		if err != nil {
 			return nil, err
@@ -550,9 +563,6 @@ func makeTransport(endpoint Endpoint, stderr io.Writer) (mcp.Transport, error) {
 			HTTPClient: client,
 			MaxRetries: -1, DisableStandaloneSSE: true, MaxEventSize: DefaultMaxEventSize,
 		}, nil
-	}
-	if strings.TrimSpace(endpoint.Command[0]) == "" {
-		return nil, fmt.Errorf("%w: command is empty", ErrInvalidEndpoint)
 	}
 	cmd := exec.Command(endpoint.Command[0], endpoint.Command[1:]...)
 	if stderr != nil {

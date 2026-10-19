@@ -34,7 +34,7 @@ var paletteCommands = []paletteCommand{
 	{name: "history", aliases: []string{"sessions", "conversations", "resume"}, usage: "history [SESSION_ID | new]", help: "browse or resume saved conversations"},
 	{name: "layout", usage: "layout NAME", help: "choose studio, conversation, review, or focus"},
 	{name: "marketplace", aliases: []string{"market", "skills"}, usage: "marketplace [skills|mcp]", help: "browse and preview skills and MCP servers"},
-	{name: "mcp", aliases: []string{"mcp-servers"}, usage: "mcp [browse]", help: "browse and install MCP servers from the marketplace"},
+	{name: "mcp", aliases: []string{"mcp-servers"}, usage: "mcp [browse] | config [PATH] [--scope project|global]", help: "browse servers or validate and save a custom MCP config; restart to connect"},
 	{name: "model", aliases: []string{"models"}, usage: "model [MODEL_SLUG]", help: "quick-switch active model or account"},
 	{name: "new", aliases: []string{"clear"}, usage: "new", help: "start a new conversation"},
 	{name: "project", aliases: []string{"projects", "repo", "repos"}, usage: "project [scan | details | readme | prs | issues | notion | settings | name NAME | description TEXT | add ALIAS [OWNER/REPO] | add-all | remove ALIAS]", help: "scan and manage project metadata, GitHub PRs/issues, Notion & repositories"},
@@ -42,7 +42,7 @@ var paletteCommands = []paletteCommand{
 	{name: "resize", usage: "resize PANE N", help: "resize files, viewer, chat, or terminal by percentage"},
 	{name: "review", aliases: []string{"r"}, usage: "review", help: "refresh review"},
 	{name: "save", aliases: []string{"write"}, usage: "save", help: "save inline editor changes"},
-	{name: "skill", usage: "skill browse | install ID [--scope project|global]", help: "browse or install a marketplace skill"},
+	{name: "skill", usage: "skill browse | install ID_OR_PATH [--scope project|global] | install-git REPOSITORY REF SUBDIRECTORY [--scope project|global]", help: "install catalog, local SKILL.md directories or Git skills; installation does not activate instructions"},
 	{name: "settings", usage: "settings", help: "open settings"},
 	{name: "tasks", aliases: []string{"task"}, usage: "tasks [refresh|cancel ID]", help: "show, refresh, or cancel tasks"},
 	{name: "terminal", aliases: []string{"t"}, usage: "terminal [on|off|new|next|prev]", help: "open a terminal tab in the viewer, add one, or switch tabs"},
@@ -179,7 +179,7 @@ func paletteSuggestions(input string) []paletteSuggestion {
 		}
 	case "skill":
 		if len(fields) <= 2 || (len(fields) == 2 && trailingSpace) {
-			values = []string{"browse", "install "}
+			values = []string{"browse", "install ", "install-git "}
 		} else if strings.EqualFold(fields[1], "install") {
 			// Skill IDs come from the catalog already loaded by the marketplace.
 			// The model-aware completion below adds these values; this static
@@ -193,6 +193,10 @@ func paletteSuggestions(input string) []paletteSuggestion {
 	case "project":
 		if len(fields) <= 2 || (len(fields) == 2 && trailingSpace) {
 			values = []string{"scan", "details", "readme", "prs", "issues", "notion", "settings", "name ", "description ", "add ", "add-all", "remove "}
+		}
+	case "mcp":
+		if len(fields) <= 2 {
+			values = []string{"browse", "config "}
 		}
 	case "marketplace":
 		if len(fields) <= 2 || (len(fields) == 2 && trailingSpace) {
@@ -296,7 +300,15 @@ func (m *Model) executePaletteCommand(input string) tea.Cmd {
 		m.openHelp()
 		return nil
 	}
-	fields := strings.Fields(input)
+	fields, err := CommandFields(input)
+	if err != nil {
+		m.paletteError = err.Error()
+		m.status = m.paletteError
+		return nil
+	}
+	if len(fields) == 0 {
+		return nil
+	}
 	command, ok := paletteCommandFor(fields[0])
 	if !ok {
 		m.paletteError = paletteUnknownUsage(fields[0])
@@ -313,6 +325,14 @@ func (m *Model) executePaletteCommand(input string) tea.Cmd {
 		m.paletteHelp = paletteCommandHelp(command)
 		m.status = paletteUsage(command) + " · " + command.help
 		return nil
+	}
+	if request, custom, err := ParseExtensionCommand(command.name, args); custom {
+		if err != nil {
+			m.paletteError = err.Error()
+			m.status = m.paletteError
+			return nil
+		}
+		return m.startExtension(request)
 	}
 	switch command.name {
 	case "explain", "walkthrough":

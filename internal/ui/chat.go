@@ -411,6 +411,14 @@ func (m *Model) submitChat() tea.Cmd {
 		m.status = "chat prompt is empty"
 		return nil
 	}
+	if IsChatCommand(prompt) {
+		cmd := m.executePaletteCommand(prompt)
+		if m.paletteError == "" && strings.TrimSpace(m.chatInput) == prompt {
+			m.chatInput = ""
+			m.chatInputChanged(m.chatAtBottom())
+		}
+		return cmd
+	}
 	if m.chatRunner == nil {
 		m.status = "provider not connected yet"
 		return nil

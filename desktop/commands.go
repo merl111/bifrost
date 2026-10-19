@@ -98,7 +98,10 @@ func (g *desktop) runCommandLine() {
 	c.root.SetVisible(false)
 }
 func (g *desktop) executeCommand(input string) error {
-	fields := strings.Fields(strings.TrimPrefix(strings.TrimSpace(input), ":"))
+	fields, err := ui.CommandFields(input)
+	if err != nil {
+		return err
+	}
 	if len(fields) == 0 {
 		g.commandHelp("")
 		return nil
@@ -112,6 +115,12 @@ func (g *desktop) executeCommand(input string) error {
 	if len(args) == 1 && strings.EqualFold(args[0], "--help") {
 		g.commandHelp(spec.Name)
 		return nil
+	}
+	if request, custom, err := ui.ParseExtensionCommand(spec.Name, args); custom {
+		if err != nil {
+			return err
+		}
+		return g.commandExtension(request)
 	}
 	handlers := g.commandHandlers()
 	handler := handlers[spec.Name]
@@ -194,7 +203,7 @@ func (g *desktop) commandHelp(name string) {
 		s, _ := ui.Command(name)
 		fmt.Fprintf(&b, ":%s\n\n%s\nAliases: %s", s.Usage, s.Help, strings.Join(s.Aliases, ", "))
 	} else {
-		b.WriteString("Bifrost commands\n\nEnter a colon command in the composer, or select one from Search & commands.\n\n")
+		b.WriteString("Bifrost commands\n\nEnter a /command or :command in the composer, or select one from Search & commands.\n\n")
 		for _, s := range ui.Commands() {
 			fmt.Fprintf(&b, ":%s\n  %s\n\n", s.Usage, s.Help)
 		}
@@ -362,6 +371,9 @@ func (g *desktop) commandSkill(a []string) error {
 	g.work(func(ctx context.Context) func() {
 		_, err := g.ws.Marketplace.Preview(ctx, id)
 		result := ""
+		if err == nil {
+			err = ctx.Err()
+		}
 		if err == nil {
 			result, err = g.ws.Marketplace.Install(ctx, id, scope)
 		}

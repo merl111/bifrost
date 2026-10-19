@@ -57,6 +57,9 @@ func ConfigServers(configPath string) ([]ServerConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := validateConfig(cfg); err != nil {
+		return nil, err
+	}
 	return append([]ServerConfig(nil), cfg.Servers...), nil
 }
 
@@ -111,25 +114,11 @@ func Open(ctx context.Context, configPath string, stderr io.Writer) ([]agent.Too
 	if err != nil {
 		return nil, func() {}, err
 	}
-	if len(cfg.Servers) > maxServers {
-		return nil, func() {}, fmt.Errorf("%w: at most %d servers", ErrLimit, maxServers)
+	if err := validateConfig(cfg); err != nil {
+		return nil, func() {}, err
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, func() {}, err
-	}
-	seenAliases := make(map[string]string, len(cfg.Servers))
-	for _, server := range cfg.Servers {
-		if err := validateServer(server); err != nil {
-			return nil, func() {}, err
-		}
-		alias := component(server.Name)
-		if alias == "" {
-			return nil, func() {}, fmt.Errorf("%w: server name %q is empty after normalization", ErrInvalidConfig, server.Name)
-		}
-		if previous, ok := seenAliases[alias]; ok {
-			return nil, func() {}, fmt.Errorf("%w: server names %q and %q collide", ErrInvalidConfig, previous, server.Name)
-		}
-		seenAliases[alias] = server.Name
 	}
 
 	var sessions []*mcpclient.Session
@@ -291,22 +280,16 @@ func readConfig(path string) (fileConfig, error) {
 }
 
 func validateServer(server serverConfig) error {
+	if err := mcpclient.ValidateEndpoint(mcpclient.Endpoint{URL: server.URL, Command: server.Command, Headers: server.Headers}); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidConfig, err)
+	}
 	if strings.TrimSpace(server.Name) == "" {
 		return fmt.Errorf("%w: server name is required", ErrInvalidConfig)
-	}
-	if server.URL != "" && len(server.Command) > 0 || server.URL == "" && len(server.Command) == 0 {
-		return fmt.Errorf("%w: server %q needs exactly one of url or command", ErrInvalidConfig, server.Name)
-	}
-	if server.URL != "" {
-		return mcpclient.ValidateHeaderRefs(server.Headers)
 	}
 	for _, arg := range server.Command {
 		if arg == "" {
 			return fmt.Errorf("%w: server %q has an empty command argument", ErrInvalidConfig, server.Name)
 		}
-	}
-	if err := mcpclient.ValidateHeaderRefs(server.Headers); err != nil {
-		return err
 	}
 	return nil
 }
@@ -380,4 +363,26 @@ func newCleanup(sessions *[]*mcpclient.Session) func() {
 			}
 		})
 	}
+}
+
+func validateConfig(cfg fileConfig) error {
+	if len(cfg.Servers) > maxServers {
+		return fmt.Errorf("%w: at most %d servers", ErrLimit, maxServers)
+	}
+	seenAliases := make(map[string]string, len(cfg.Servers))
+	for _, server := range cfg.Servers {
+		if err := validateServer(server); err != nil {
+			return err
+		}
+		alias := component(server.Name)
+		if alias == "" {
+			return fmt.Errorf("%w: server name %q is empty after normalization", ErrInvalidConfig, server.Name)
+		}
+		if previous, ok := seenAliases[alias]; ok {
+			return fmt.Errorf("%w: server names %q and %q collide", ErrInvalidConfig, previous, server.Name)
+		}
+		seenAliases[alias] = server.Name
+	}
+
+	return nil
 }

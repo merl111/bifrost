@@ -306,3 +306,16 @@ Availability note: Ruflo/ToolSearch were not exposed in the handoff session.
 Discover them when available; otherwise state that limitation and continue with
 normal repository inspection and available tools. Do not invent tool results or
 install an orchestration dependency into Bifrost to satisfy this workflow.
+
+## Custom extension commands (2026-10-19)
+
+Both composers accept registered slash commands as well as colon commands.
+`/skill install` resolves explicit local paths (`./`, `../`, `~/`, absolute)
+through the existing inert installer; other IDs keep marketplace preview/install.
+`/skill install-git REPO REF SUBDIR` supports project/global scope. Shared parsing
+preserves quoted paths and never performs shell expansion. `/mcp config [PATH]`
+validates endpoint files without connecting, and persists revision-checked
+project/global references. Folder-only workspaces use `workspace-<canonical root
+hash>` project settings keys for MCP. MCP defaults are read at startup; tell users
+to restart. The GUI pickers prepare editable commands. Keep the offline composer,
+invalid-input retention and native extension regression tests synchronized.

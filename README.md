@@ -34,7 +34,32 @@ evidence; other desktop platforms and live vendor/OAuth integrations need furthe
 qualification. [Implemented coverage and limits](docs/desktop.md#implemented-tui-workflow-coverage)
 separate working features from the broader roadmap.
 
+## Download
+
+[Get the Linux release](https://github.com/merl111/bifrost/releases/latest):
+
+| Download | Runs |
+| --- | --- |
+| `Bifrost-0.1.0-x86_64.AppImage` | Native GUI, with GTK included; Ubuntu 24.04/glibc 2.39+ and X11/XWayland |
+| `bifrost-0.1.0-linux-x86_64` | Standalone CLI/TUI; no GUI libraries or Go installation |
+
+```sh
+chmod +x Bifrost-0.1.0-x86_64.AppImage
+./Bifrost-0.1.0-x86_64.AppImage
+
+chmod +x bifrost-0.1.0-linux-x86_64
+./bifrost-0.1.0-linux-x86_64 --root /path/to/project tui
+```
+
+If FUSE is unavailable, prefix the AppImage command with
+`APPIMAGE_EXTRACT_AND_RUN=1`. Both downloads use your existing Bifrost settings.
+Provider credentials and optional external tools are configured separately.
+Release assets include SHA-256 checksums and third-party notices.
+[Packaging and release checks](packaging/README.md).
+
 ## Desktop quick start
+
+To build from source:
 
 Keep the CUI source checkout beside Bifrost. For a fresh checkout, use the
 [pinned CUI revision and included compatibility patch](patches/README.md):

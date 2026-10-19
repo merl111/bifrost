@@ -30,3 +30,12 @@ desktop-smoke:
 	cd desktop && for test_name in TestNativeWorkspace TestNativeWorkspaceControls TestNativeCustomExtensions; do \
 		BIFROST_NATIVE_TEST=1 GDK_BACKEND=x11 xvfb-run -a -s '-screen 0 3840x2160x24' go test -race -ldflags="-buildid=bifrost-native-test-$$(date +%s%N)" -run "^$$test_name$$" -count=1 -timeout=90s -v || exit $$?; \
 	done
+
+# Build and test separate Linux GUI/TUI release downloads in a clean baseline.
+.PHONY: release-linux
+release-linux:
+	docker build --progress=plain --target verified -f packaging/Dockerfile -t bifrost-release .
+	@container=$$(docker create bifrost-release); \
+	trap 'docker rm "$$container" >/dev/null' EXIT; \
+	mkdir -p dist && docker cp "$$container:/out/." dist/
+	cd dist && sha256sum --check SHA256SUMS

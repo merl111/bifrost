@@ -26,12 +26,17 @@ func main() {
 
 func run(args []string) error {
 	for _, arg := range args {
+		if arg == "--version" {
+			fmt.Println("bifrost-desktop " + cli.Version)
+			return nil
+		}
 		if arg == "--help" || arg == "-h" {
 			fmt.Println(`Bifrost Desktop — native CUI workspace
 
 Usage: bifrost-desktop [--root PATH] [--project NAME --repository ALIAS]
   [--config PATH] [--state-dir PATH] [--profile NAME] [--session ID]
   [--allow-write] [--allow-exec] [--model MODEL]
+  --version prints the version without opening a window
 
 Uses the same provider, permission and session settings as the TUI.
 Enter sends · Shift/Alt+Enter inserts a newline · Escape dismisses or stops

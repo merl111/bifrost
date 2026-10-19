@@ -1,0 +1,10 @@
+.git
+.agents
+.codex
+.research
+.bifrost
+bin
+dist
+*.test
+coverage.out
+.ripwire*

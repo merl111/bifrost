@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Bifrost
+Comment=An AI development workspace for your projects
+Exec=bifrost-desktop
+Icon=bifrost-desktop
+Terminal=false
+Categories=Development;IDE;
+Keywords=AI;Code;Chat;Review;
+StartupWMClass=Bifrost

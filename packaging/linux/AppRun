@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -e
+export APPDIR="$(cd -- "$(dirname -- "$(readlink -f -- "$0")")" && pwd)"
+# linuxdeploy gives each ELF its own relative RPATH. Do not export a bundled
+# LD_LIBRARY_PATH or prepend bundled tools to PATH: child shells use host tools.
+source "$APPDIR/apprun-hooks/linuxdeploy-plugin-gtk.sh"
+exec "$APPDIR/usr/bin/bifrost-desktop" "$@"

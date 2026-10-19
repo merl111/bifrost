@@ -6,3 +6,5 @@
 
 # Local third-party application analysis artifacts
 .research/
+
+/dist/

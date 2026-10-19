@@ -1,5 +1,26 @@
 # Current implementation evidence — 19 October 2026
 
+## Separate Linux release packages — 19 October 2026
+
+`packaging/Dockerfile` and the Linux release workflow build a static CLI/TUI
+executable and a separate native GUI AppImage on Ubuntu 24.04. CUI is fetched
+at the documented commit and both compatibility patches are applied. GTK assets
+and libraries are bundled; graphics drivers, glibc 2.39+ and X11/XWayland remain
+host requirements. No Go or GTK development installation is needed to run it.
+The AppImage uses relative ELF library paths without exporting a bundled
+`LD_LIBRARY_PATH` to host commands. `--version` works without opening GTK.
+
+The workflow gates publication on both modules' race/vet checks, six independent
+native Xvfb regressions and delivered-artifact smoke checks in a clean container
+without system GTK. Checksums, version, release notes and third-party notices
+accompany the two downloads. Tag/version mismatch prevents publication; assets
+are uploaded to a draft before it becomes public. See [packaging](../packaging/README.md).
+
+Local TUI packaging smoke passed (120×36, 80×24, 160×48 and 60×20, command palette,
+clean exit). Clean-container and GitHub workflow validation are in progress;
+publication is deferred until they pass. FUSE mounting and real provider/VM
+integrations are outside this packaging check; CI uses AppImage extract-and-run.
+
 ## Custom skill installs and MCP config selection — 19 October 2026
 
 The GUI and TUI chat composers now recognize registered `/commands`, alongside

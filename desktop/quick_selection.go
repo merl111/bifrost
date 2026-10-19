@@ -153,7 +153,11 @@ func (g *desktop) loadQuickModels(account ui.AccountChoice) {
 			}
 			g.quick.cancel = nil
 			if err != nil {
-				g.showModelChoices(account, nil, "Could not load models — retry or enter an ID")
+				g.showModelChoices(account, nil, "Could not load models: "+shortText(err.Error(), 140))
+				return
+			}
+			if len(models) == 0 {
+				g.showModelChoices(account, nil, "No models returned — check the account or refresh")
 				return
 			}
 			if g.quick.models == nil {

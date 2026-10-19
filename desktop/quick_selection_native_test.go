@@ -28,6 +28,7 @@ func TestNativeIndependentProviderAndModel(t *testing.T) {
 	defer runtime.UnlockOSThread()
 	var requests atomic.Int32
 	var block atomic.Bool
+	t.Setenv("BIFROST_TEST_OPENROUTER_KEY", "fixture-key")
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
 		if block.Load() {
@@ -35,6 +36,20 @@ func TestNativeIndependentProviderAndModel(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/api/v1/models" {
+			if r.Header.Get("Authorization") != "Bearer fixture-key" {
+				t.Error("OpenRouter catalog omitted provider credential")
+			}
+			fmt.Fprint(w, `{"data":[`)
+			for i := 0; i < 512; i++ {
+				if i > 0 {
+					fmt.Fprint(w, ",")
+				}
+				fmt.Fprintf(w, `{"id":"vendor/model-%03d","name":"Catalog model %d","context_length":65536}`, i, i)
+			}
+			fmt.Fprint(w, `]}`)
+			return
+		}
 		fmt.Fprint(w, `{"data":[{"id":"model-one"},{"id":"model-two"}]}`)
 	}))
 	defer server.Close()
@@ -43,7 +58,7 @@ func TestNativeIndependentProviderAndModel(t *testing.T) {
 	root, state := t.TempDir(), t.TempDir()
 	cfg := config.DefaultSettings()
 	cfg.ActiveProvider = "alpha"
-	cfg.Providers = map[string]config.ProviderSettings{"alpha": {Kind: "chat-completions", BaseURL: server.URL, Model: "model-one"}, "beta": {Kind: "chat-completions", BaseURL: server.URL, Model: "beta-default"}}
+	cfg.Providers = map[string]config.ProviderSettings{"alpha": {Kind: "chat-completions", BaseURL: server.URL, Model: "model-one"}, "beta": {Kind: "openrouter", BaseURL: server.URL + "/api/v1", APIKeyEnv: "BIFROST_TEST_OPENROUTER_KEY", Model: "beta-default"}}
 	if err := config.SaveSettings(filepath.Join(state, "config.json"), cfg, false); err != nil {
 		t.Fatal(err)
 	}
@@ -136,9 +151,29 @@ func TestNativeIndependentProviderAndModel(t *testing.T) {
 				failed = fmt.Errorf("provider did not restore its model")
 				return
 			}
+			g.modelName.Activate()
+			phase = 40
+		case 40:
+			if g.quick.models["beta"] == nil {
+				return
+			}
+			if len(g.quick.models["beta"]) != 512 || g.palette.PickerMatchCount() != 515 {
+				failed = fmt.Errorf("large OpenRouter catalog is incomplete")
+				return
+			}
+			choose("vendor/model-511")
+			phase = 41
+		case 41:
+			if g.busy {
+				return
+			}
+			if g.activeChat().snapshot.Connection.Model != "vendor/model-511" || !strings.Contains(g.contextMeter.Text(), "%") {
+				failed = fmt.Errorf("OpenRouter model selection or catalog context capacity was lost")
+				return
+			}
 			g.profiles.Activate()
 			choose("alpha")
-			phase++
+			phase = 5
 		case 5:
 			if g.busy {
 				return
@@ -148,7 +183,7 @@ func TestNativeIndependentProviderAndModel(t *testing.T) {
 				return
 			}
 			g.modelName.Activate()
-			if requests.Load() != 1 {
+			if requests.Load() != 2 {
 				failed = fmt.Errorf("cached model picker refetched")
 				return
 			}
@@ -158,7 +193,7 @@ func TestNativeIndependentProviderAndModel(t *testing.T) {
 			g.modelName.Activate()
 			phase++
 		case 6:
-			if requests.Load() < 2 {
+			if requests.Load() < 3 {
 				return
 			}
 			g.closePalette()

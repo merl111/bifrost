@@ -108,6 +108,13 @@ chat tabs, and switching is disabled until running turns finish or are stopped.
 
 ![Separate provider and model controls in the native composer](docs/images/desktop-provider-model-controls.png)
 
+Model discovery uses the selected saved account, including stored OpenRouter
+credentials. Empty or failed catalogs remain retryable and show a diagnostic.
+The [CUI compatibility patches](patches/README.md) include the GTK mouse-selection
+crash fix; rebuild the native library and desktop together with `make desktop`.
+
+![OpenRouter's public catalog rendered in the native picker, replayed through a local fixture](docs/images/desktop-openrouter-models.png)
+
 ## Conversation controls and context
 
 Every open tab has a **×** close button; **Ctrl+W** closes the current tab. Closing

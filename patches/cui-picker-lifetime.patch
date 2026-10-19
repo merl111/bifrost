@@ -1,0 +1,96 @@
+diff --git a/src/cui_search.c b/src/cui_search.c
+index 99adfee..ade1da0 100644
+--- a/src/cui_search.c
++++ b/src/cui_search.c
+@@ -9,8 +9,8 @@ typedef struct picker_state {
+     cui_picker_kind kind;cui_picker_event event;
+     cui_choice_model *model;
+     size_t *matches,count;
+-    cui_item_id selected;
+-    cui_timer *timer;
++    cui_item_id selected,pending;
++    cui_timer *timer,*accept_timer;
+     int open,headings,status,actions;
+ } picker_state;
+ static void dispose(void *data)
+@@ -46,6 +46,7 @@ static size_t match_choices(picker_state *s,const char *key,size_t *map,const ch
+ }
+ static int refresh(picker_state *s,const char *query)
+ {
++    s->pending=0;
+     char *key=cui__search_key(query);if(!key)return 0;
+     size_t total=s->model?s->model->count:0,count=0;
+     size_t *map=total?malloc(total*sizeof(*map)):NULL;
+@@ -88,7 +89,8 @@ size_t cui_picker_get_query(const cui_widget *w,char *buffer,size_t capacity)
+ void cui_picker_close(cui_widget *w)
+ {
+     picker_state *s=state(w);if(!s)return;
+-    int restore=cui__contains_focus(w);s->open=0;visibility(s);cui_timer_stop(s->timer);
++    int restore=cui__contains_focus(w);s->open=0;s->pending=0;
++    visibility(s);cui_timer_stop(s->timer);cui_timer_stop(s->accept_timer);
+     if(restore&&s->return_focus)cui_focus(s->return_focus);
+ }
+ static void focus_tick(void *data)
+@@ -135,13 +137,27 @@ static void edited(cui_widget *sender,void *data)
+     }
+     free(query);
+ }
++static void accept_selected(void *data)
++{
++    picker_state *s=data;cui_item_id id=s->pending;s->pending=0;
++    cui_timer_stop(s->accept_timer);
++    if(!id||!s->open)return;
++    for(cui_widget *p=s->root;p;p=p->parent)if(p->hidden||!p->enabled)return;
++    if(cui_picker_select(s->root,id))emit(s,CUI_PICKER_SELECT);
++}
+ static void result_selected(cui_widget *sender,void *data)
+ {
+     picker_state *s=data;int row,column;
+     if(cui_table_last_event(sender,&row,&column)!=CUI_TABLE_SELECTION)return;
+     cui_choice_entry *item=at_row(s,cui_get_selected(sender));
+     if(!item||item->disabled){cui_set_selected(sender,-1);return;}
+-    cui_picker_accept(s->root);
++    /* Native selection signals are emitted while GTK still uses the selection
++     * model. Accepting synchronously replaces that model in refresh(), freeing
++     * it before gtk_single_selection_set_selected() finishes its notifications.
++     * Copy the stable ID and accept after the native event has unwound. */
++    s->pending=item->id;
++    if(!s->accept_timer)s->accept_timer=cui_every(s->root->window->app,10,accept_selected,s);
++    else cui_timer_start(s->accept_timer);
+ }
+ static void move(picker_state *s,int direction)
+ {
+diff --git a/tests/search_feedback.c b/tests/search_feedback.c
+index aec931e..9715972 100644
+--- a/tests/search_feedback.c
++++ b/tests/search_feedback.c
+@@ -106,6 +106,29 @@ static void tick(void *data)
+ {
+     (void)data;CHECK(++ticks<120);
+     if(phase==0){
++        cui_choice choices[]={{1,"First","","",0},{2,"Second","","",0}};
++        CHECK(cui_picker_set_items(palette,choices,2));cui_picker_open(palette,outside);
++        phase=14;return;
++    }
++    if(phase==14){
++        cui_widget *table=cui_picker_get_part(palette,CUI_PICKER_RESULTS);
++        GtkSelectionModel *model=gtk_column_view_get_model(GTK_COLUMN_VIEW(table->aux));
++        /* Same signal path as a mouse click, without CUI's silent setter.
++         * G_DEBUG=fatal-criticals catches the former freed-model notification. */
++        CHECK(gtk_selection_model_select_item(model,1,TRUE));
++        CHECK(cui_picker_is_open(palette));phase=12;return;
++    }
++    if(phase==12){
++        CHECK(!cui_picker_is_open(palette));CHECK(cui_picker_selected(palette)==2);
++        CHECK(cui_picker_set_query(palette,""));cui_picker_open(palette,outside);
++        cui_widget *table=cui_picker_get_part(palette,CUI_PICKER_RESULTS);
++        CHECK(gtk_selection_model_select_item(gtk_column_view_get_model(GTK_COLUMN_VIEW(table->aux)),1,TRUE));
++        /* A changed query must cancel the queued click, not select a stale row. */
++        CHECK(cui_picker_set_query(palette,"First"));phase=13;return;
++    }
++    if(phase==13){
++        CHECK(cui_picker_is_open(palette));CHECK(!cui_picker_selected(palette));
++        cui_picker_close(palette);CHECK(cui_picker_set_query(palette,""));
+         cui_choice choices[1000];for(size_t i=0;i<1000;++i)choices[i]=(cui_choice){i+1,"Result","Scroll to highlighted row","",0};
+         CHECK(cui_picker_set_items(palette,choices,1000));cui_picker_open(palette,outside);phase=10;return;
+     }

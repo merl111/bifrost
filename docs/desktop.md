@@ -33,6 +33,10 @@ startup behavior is desktop-only; CLI and TUI root selection are unchanged.
 ![Choose a project](images/desktop-project-picker.png)
 ![Project chooser at 640 × 560, with its primary action outside the scrolling content](images/desktop-project-picker-narrow.png)
 
+Existing checkouts also need the [picker lifetime fix](../patches/cui-picker-lifetime.patch)
+before rebuilding. It prevents GTK mouse provider/model selection from freeing
+an active native selection model; see the [patch instructions](../patches/README.md).
+
 For a different CUI checkout, build its `cui` CMake target, then run
 `go mod edit -replace=cui.local/cui=/absolute/path/to/cui/bindings/go` inside
 `desktop/`. Build the bindings and C library from the same checkout; an outdated

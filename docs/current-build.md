@@ -1,5 +1,47 @@
 # Current implementation evidence — 19 October 2026
 
+## Provider-switch crash and model discovery — 19 October 2026
+
+Reproduced a GTK invalid-object fault through real mouse provider selection.
+GDB stopped in `gtk_single_selection_set_selected`: CUI's picker synchronously
+replaced/freed the selection model from its own selection callback. The bundled
+`cui-picker-lifetime.patch` defers acceptance until the native signal returns,
+retains only the selected ID, and cancels pending acceptance on query/model
+changes or closure. The adjacent CUI library and desktop executable were rebuilt.
+
+Catalog discovery now resolves a saved profile's actual account name, avoiding
+double-prefixed Cursor Native IDs and supporting renamed profiles. OpenRouter
+uses the selected account's saved credentials, including after its environment
+variable is unset. Missing explicit credentials fail without using another
+account's key. Generic API profiles use the same environment precedence as
+generation. Discovery keeps the saved model as the selection default and no
+longer exports a form's API key into the shared environment. Empty/failed quick
+catalog results are explained and are not cached as successful loads.
+
+Verification:
+
+- CUI search/feedback tests passed at normal and 4K sizes with
+  `G_DEBUG=fatal-criticals`, including native selection and stale-click cancellation.
+- Real X11 mouse provider switching, keyboard model/provider selection and clean
+  shutdown passed with the same fatal checks. Before the fix, this path produced
+  invalid-object notifications; after the fix it did not.
+- The native race regression switches to an OpenRouter fixture, loads 512 models,
+  searches/selects the last model, retains draft/history and handles canceled
+  catalog requests. Shared CLI tests verify credential isolation, profile aliases,
+  remembered model defaults and environment behavior.
+- OpenRouter's unauthenticated public `/api/v1/models` endpoint returned 470 entries
+  in 787,403 bytes. This response was replayed through a local fixture and rendered
+  in the actual native picker. No generation or real account credentials were used.
+  Endpoint reference: [OpenRouter models API](https://openrouter.ai/docs/api/api-reference/models/get-models).
+- Full root race suite and vet, desktop race/vet, and both executable builds passed.
+  Full native desktop workflow passed in 54.00 seconds; existing nonfatal GTK
+  layout warnings remain. The rebuilt TUI passed PTY startup, command palette,
+  resize at 80×24, 120×36, 160×48 and 60×20, and clean shutdown.
+- Structural delta against `dcecce2` has three gating findings: increased size and
+  complexity in the expanded native regression test, plus churn in `loadQuickModels`.
+  This is not a clean structural gate. Native evidence covers Linux GTK, not macOS
+  or Windows; the original screenshot's exact SIGSEGV had no saved core dump.
+
 ## Context, history, scoped skills, approvals and child models — 19 October 2026
 
 - Native tabs now have individual close buttons and an always-visible History action.

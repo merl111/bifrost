@@ -362,7 +362,7 @@ func (c *workspaceChat) discoverAccountModels(ctx context.Context, req ui.Accoun
 	}
 
 	if s, err := c.opts.settings(); err == nil {
-		if saved, ok := s.Providers[rawName]; ok {
+		if saved, ok := s.Providers[rawName]; ok && (kind == "" || kind == saved.Kind) {
 			if kind == "" {
 				kind = strings.ToLower(strings.TrimSpace(saved.Kind))
 			}
@@ -378,8 +378,8 @@ func (c *workspaceChat) discoverAccountModels(ctx context.Context, req ui.Accoun
 			if strings.TrimSpace(req.Account) == "" {
 				req.Account = saved.Account
 			}
-			if strings.TrimSpace(req.Account) != "" && rawName == "" {
-				rawName = saved.Account
+			if strings.TrimSpace(req.Model) == "" {
+				req.Model = saved.Model
 			}
 		}
 	}
@@ -387,29 +387,11 @@ func (c *workspaceChat) discoverAccountModels(ctx context.Context, req ui.Accoun
 	if kind == "cursor" || kind == "claude" {
 		acctStore, err := accountStore(c.opts)
 		if err != nil {
-			return nil, "", nil
+			return nil, "", err
 		}
-		var acct accounts.Account
-		found := false
-		stableID, _ := accounts.StableID(accounts.Kind(kind), rawName)
-		for _, candidateID := range []string{rawName, stableID} {
-			if candidateID == "" {
-				continue
-			}
-			if a, getErr := acctStore.Get(candidateID); getErr == nil {
-				acct = a
-				found = true
-				break
-			}
-		}
-		if !found && strings.TrimSpace(req.Account) != "" {
-			if a, getErr := acctStore.GetByName(accounts.Kind(kind), strings.TrimSpace(req.Account)); getErr == nil {
-				acct = a
-				found = true
-			}
-		}
-		if !found {
-			return nil, "", nil
+		acct, err := discoveryAccount(acctStore, kind, rawName, req.Account)
+		if err != nil {
+			return nil, "", fmt.Errorf("load model catalog account: %w", err)
 		}
 		cfg := authAgentConfig(acct, strings.TrimSpace(req.Executable))
 		entries, mErr := agentbackend.Models(ctx, cfg)
@@ -430,14 +412,6 @@ func (c *workspaceChat) discoverAccountModels(ctx context.Context, req ui.Accoun
 		return out, defModel, nil
 	}
 
-	if strings.TrimSpace(req.RawAPIKey) != "" {
-		envName := strings.TrimSpace(req.APIKeyEnv)
-		if envName == "" {
-			envName = defaultEnvForKind(kind)
-		}
-		_ = os.Setenv(envName, strings.TrimSpace(req.RawAPIKey))
-	}
-
 	var tokenSource func(context.Context) (string, error)
 	if kind == "cursor-native" {
 		if doOAuth || strings.TrimSpace(req.RawAPIKey) != "" {
@@ -445,7 +419,7 @@ func (c *workspaceChat) discoverAccountModels(ctx context.Context, req ui.Accoun
 				_ = os.Setenv("CURSOR_API_KEY", key)
 				defer os.Unsetenv("CURSOR_API_KEY")
 			}
-			if err := loginAccount(ctx, c.opts, []string{"cursor-native", rawName}, io.Discard, c.stderr); err != nil {
+			if err := loginAccount(ctx, c.opts, []string{"cursor-native", valueOrString(req.Account, rawName)}, io.Discard, c.stderr); err != nil {
 				return nil, "", err
 			}
 		}
@@ -453,10 +427,9 @@ func (c *workspaceChat) discoverAccountModels(ctx context.Context, req ui.Accoun
 		if err != nil {
 			return nil, "", err
 		}
-		stableID, _ := accounts.StableID(accounts.KindCursorNative, rawName)
-		acct, err := acctStore.Get(stableID)
+		acct, err := discoveryAccount(acctStore, kind, rawName, req.Account)
 		if err != nil {
-			return nil, "", nil
+			return nil, "", err
 		}
 		access, err := cursorAccessToken(ctx, acctStore, acct)
 		if err != nil {
@@ -481,34 +454,26 @@ func (c *workspaceChat) discoverAccountModels(ctx context.Context, req ui.Accoun
 	}
 
 	if kind == "chatgpt" && doOAuth {
-		loginArgs := []string{"chatgpt", rawName}
+		loginArgs := []string{"chatgpt", valueOrString(req.Account, rawName)}
 		if err := loginAccount(ctx, c.opts, loginArgs, io.Discard, c.stderr); err != nil {
 			return nil, "", err
 		}
 	}
 	if kind == "chatgpt" {
-		if acctStore, err := accountStore(c.opts); err == nil {
-			stableID, _ := accounts.StableID(accounts.KindChatGPT, rawName)
-			for _, candidateID := range []string{stableID, rawName} {
-				if candidateID == "" {
-					continue
-				}
-				if acct, err := acctStore.Get(candidateID); err == nil {
-					if creds, err := acctStore.LoadCredentials(acct.ID); err == nil && (creds.AccessToken != "" || creds.RefreshToken != "") {
-						tokenSource = chatGPTTokenSource(acctStore, acct)
-						break
-					}
-				}
-			}
+		acctStore, err := accountStore(c.opts)
+		if err != nil {
+			return nil, "", err
 		}
-		if tokenSource == nil {
-			return nil, "", nil
+		acct, err := discoveryAccount(acctStore, kind, rawName, req.Account)
+		if err != nil {
+			return nil, "", fmt.Errorf("load model catalog account: %w", err)
 		}
+		tokenSource = chatGPTTokenSource(acctStore, acct)
 	}
 
-	apiKey := strings.TrimSpace(req.RawAPIKey)
-	if apiKey == "" && strings.TrimSpace(req.APIKeyEnv) != "" {
-		apiKey = strings.TrimSpace(os.Getenv(strings.TrimSpace(req.APIKeyEnv)))
+	apiKey, err := c.catalogAPIKey(req, kind, rawName)
+	if err != nil {
+		return nil, "", err
 	}
 
 	catModels, err := provider.DiscoverCatalogModels(ctx, provider.Config{
